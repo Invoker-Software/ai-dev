@@ -1,0 +1,21 @@
+ADHOC CONTEXT SLICE — STAGE 1 OUTPUT
+=====================================
+This file is produced by the adhoc-investigator agent (Stage 1). It is the sole
+authorization for the adhoc-executor agent (Stage 2). Stage 2 must not modify
+this file — it is the audit record of what Stage 2 was authorised to touch.
+
+Target Architecture & Affected Subsystems:
+- Primary Modules: [Paths to the packages/directories the task actually touches]
+- Infra / Config Hooks: [K8s manifests, Terraform modules, Helm charts, env vars touched, if any]
+
+Dependency & Data Flow Analysis:
+- Upstream Callers: [Services, APIs, or events that trigger this sub-system]
+- Downstream Impact: [DBs, external APIs, message queues touched]
+- Blast-radius evidence: [FULL | DEGRADED — state which tools were unavailable and what was used instead]
+
+Invariants & Guardrails:
+- Platform Conventions: [Auth middleware order, logging schema, error boundaries]
+- Do Not Touch: [Sensitive areas, shared libs to leave untouched]
+
+Minimal File Manifest:
+[List of 3-10 precise file paths required for the modification]
