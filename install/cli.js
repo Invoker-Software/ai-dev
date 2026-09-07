@@ -69,11 +69,22 @@ function whichExecutable(name) {
 /**
  * Resolve an executable `claude` binary: explicit env override, then the
  * known user-local install path, then a PATH scan. Throws when none resolve.
+ *
+ * `ADHOC_CLAUDE_BIN` is the superseded name of the override variable. When it
+ * is set and `AI_DEV_CLAUDE_BIN` is not, a deprecation warning is printed —
+ * the old variable is never honored as an override, only warned about, so a
+ * teammate's pinned binary is never silently replaced without a word.
  * @returns {string}
  */
 function resolveClaudeBin() {
   /** @type {string[]} */
   const searched = [];
+
+  if (!process.env.AI_DEV_CLAUDE_BIN && process.env.ADHOC_CLAUDE_BIN) {
+    process.stderr.write(
+      'Warning: ADHOC_CLAUDE_BIN is deprecated and no longer honored; set AI_DEV_CLAUDE_BIN instead.\n'
+    );
+  }
 
   const envBin = process.env.AI_DEV_CLAUDE_BIN;
   if (envBin) {
@@ -108,7 +119,8 @@ function resolveClaudeBin() {
  * Validate every prerequisite for a run before any file is written:
  * Node version floor, `vexp` on PATH, a resolvable `claude` binary, every
  * named target existing as a directory, and at least one discoverable
- * artifact. Returns the discovered artifacts on success.
+ * artifact. Returns the discovered artifacts on success. This gate is
+ * unconditional — `--dry-run` shares it exactly, with no branching.
  * @param {string[]} targets
  * @returns {Artifact[]}
  */
@@ -413,29 +425,63 @@ function repoSlugFromPackageJson(pkg) {
 }
 
 /**
+ * Format a rate-limit error message, including the reset time from the
+ * response headers when present.
+ * @param {{ headers: { get: (name: string) => string | null } }} res
+ * @returns {string}
+ */
+function formatRateLimitError(res) {
+  const reset = res.headers && res.headers.get ? res.headers.get('x-ratelimit-reset') : null;
+  const resetText = reset
+    ? ` (resets at ${new Date(Number(reset) * 1000).toISOString()})`
+    : '';
+  return `GitHub API rate limit hit${resetText}`;
+}
+
+/**
  * Fetch how many commits the default branch is ahead of the installed SHA,
- * via the GitHub compare API. Reads `ahead_by`, not `behind_by` — with the
- * installed SHA as the compare base, `ahead_by` is the count of upstream
- * commits missing from the install.
+ * via the GitHub compare API. Reads `ahead_by` (never the superseded field
+ * name) — with the installed SHA as the compare base, `ahead_by` is the count of upstream
+ * commits missing from the install. Every way this can fail to answer is
+ * reported as its own distinguishable condition — a 404 (installed commit
+ * absent upstream, likely a rewritten history), a 403 (GitHub API rate
+ * limit), a network failure (host unreachable), or any other non-OK status —
+ * so that none of them can be silently read as a zero-commits-behind count.
  * @param {string} repoSlug
  * @param {string} installedSha
  * @returns {Promise<StalenessResult>}
  */
 async function checkStaleness(repoSlug, installedSha) {
-  const repoRes = await fetch(`https://api.github.com/repos/${repoSlug}`);
+  let repoRes;
+  try {
+    repoRes = await fetch(`https://api.github.com/repos/${repoSlug}`);
+  } catch (err) {
+    throw new Error(`Could not reach api.github.com: ${errMessage(err)}`);
+  }
+  if (repoRes.status === 403) {
+    throw new Error(formatRateLimitError(repoRes));
+  }
   if (!repoRes.ok) {
     throw new Error(`GitHub repo lookup failed: HTTP ${repoRes.status}`);
   }
   const repoJson = await repoRes.json();
   const defaultBranch = repoJson.default_branch;
 
-  const cmpRes = await fetch(
-    `https://api.github.com/repos/${repoSlug}/compare/${installedSha}...${defaultBranch}`
-  );
+  let cmpRes;
+  try {
+    cmpRes = await fetch(
+      `https://api.github.com/repos/${repoSlug}/compare/${installedSha}...${defaultBranch}`
+    );
+  } catch (err) {
+    throw new Error(`Could not reach api.github.com: ${errMessage(err)}`);
+  }
   if (cmpRes.status === 404) {
     throw new Error(
       `Installed commit ${installedSha} not found on GitHub (possibly rewritten history) — cannot determine staleness`
     );
+  }
+  if (cmpRes.status === 403) {
+    throw new Error(formatRateLimitError(cmpRes));
   }
   if (!cmpRes.ok) {
     throw new Error(`GitHub compare failed: HTTP ${cmpRes.status}`);
