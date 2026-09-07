@@ -22,7 +22,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test install/*.test.js",
+    "test": "node --test --test-reporter=tap install/*.test.js",
     "typecheck": "tsc --noEmit"
   }
 }

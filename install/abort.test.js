@@ -42,6 +42,7 @@ async function runMain(argv) {
   const stdoutChunks = [];
   const origStderrWrite = process.stderr.write.bind(process.stderr);
   const origConsoleLog = console.log;
+  const origFetch = globalThis.fetch;
 
   process.argv = ['node', 'cli.js', ...argv];
   process.stderr.write = /** @type {typeof process.stderr.write} */ (
@@ -53,6 +54,21 @@ async function runMain(argv) {
   console.log = (msg) => {
     stdoutChunks.push(String(msg));
   };
+  // This file exercises abort/idempotency semantics, not the staleness
+  // report itself (staleness.test.js owns that) — stub fetch so main()'s
+  // checkStaleness call never reaches the live GitHub API, keeping the
+  // whole suite offline and fast per this phase's own requirement.
+  globalThis.fetch = /** @type {typeof fetch} */ (async (/** @type {any} */ url) => {
+    const isCompare = String(url).includes('/compare/');
+    return /** @type {any} */ ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        isCompare
+          ? { status: 'ahead', ahead_by: 0, behind_by: 0 }
+          : { default_branch: 'main' },
+    });
+  });
 
   /** @type {Error | null} */
   let error = null;
@@ -64,6 +80,7 @@ async function runMain(argv) {
     process.argv = origArgv;
     process.stderr.write = origStderrWrite;
     console.log = origConsoleLog;
+    globalThis.fetch = origFetch;
   }
 
   return { error, stderr: stderrChunks.join('\n'), stdout: stdoutChunks.join('\n') };
