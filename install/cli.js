@@ -244,6 +244,9 @@ function deployFile(src, dest, cfgDirAbs, dryRun) {
  * Deploy every discovered artifact into one target config directory, then
  * register vexp if needed, then write the manifest — in that order, so an
  * interrupted run never leaves a manifest claiming work that did not finish.
+ * Each stage's error is tagged with `err.stage` (`'deploy' | 'mcp' |
+ * 'manifest'`) so a caller looping over several targets can report exactly
+ * where a mid-run failure stopped.
  * @param {string} cfgDir
  * @param {Artifact[]} artifacts
  * @param {string} claudeBin
@@ -260,15 +263,29 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
   /** @type {string[]} */
   const relPaths = [];
 
-  for (const artifact of artifacts) {
-    const dest = path.join(cfgDirAbs, artifact.rel);
-    const outcome = deployFile(artifact.abs, dest, cfgDirAbs, dryRun);
-    counts[outcome] += 1;
-    relPaths.push(artifact.rel);
+  try {
+    for (const artifact of artifacts) {
+      const dest = path.join(cfgDirAbs, artifact.rel);
+      const outcome = deployFile(artifact.abs, dest, cfgDirAbs, dryRun);
+      counts[outcome] += 1;
+      relPaths.push(artifact.rel);
+    }
+  } catch (err) {
+    throw tagStage(err, 'deploy');
   }
 
-  const mcpOutcome = registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun);
-  writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun);
+  let mcpOutcome;
+  try {
+    mcpOutcome = registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun);
+  } catch (err) {
+    throw tagStage(err, 'mcp');
+  }
+
+  try {
+    writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun);
+  } catch (err) {
+    throw tagStage(err, 'manifest');
+  }
 
   return { cfgDirAbs, counts, mcpOutcome };
 }
@@ -358,6 +375,27 @@ function findOwnInstalledSha(cliDirname) {
   throw new Error(
     'Could not determine installed commit SHA: no node_modules/.package-lock.json and no .git directory found'
   );
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Tag a caught error with which stage of a target's deploy it occurred in,
+ * then return it for re-throwing.
+ * @param {unknown} err
+ * @param {'deploy' | 'mcp' | 'manifest'} stage
+ * @returns {Error & { stage?: string }}
+ */
+function tagStage(err, stage) {
+  const tagged = /** @type {Error & { stage?: string }} */ (err);
+  if (tagged && typeof tagged === 'object') tagged.stage = stage;
+  return tagged;
 }
 
 /**
@@ -524,9 +562,22 @@ async function main() {
   const totals = { written: 0, replaced: 0, unchanged: 0 };
   let registered = 0;
   let alreadyRegistered = 0;
+  /** @type {string[]} */
+  const completed = [];
 
   for (const target of positionals) {
-    const result = deployTarget(target, artifacts, claudeBin, shaInfo, repoSlug, dryRun);
+    const targetAbs = fs.realpathSync(path.resolve(target));
+    let result;
+    try {
+      result = deployTarget(target, artifacts, claudeBin, shaInfo, repoSlug, dryRun);
+    } catch (err) {
+      const tagged = /** @type {Error & { stage?: string }} */ (err);
+      process.stderr.write(`${errMessage(err)}\n`);
+      process.stderr.write(`completed: ${completed.join(', ')}\n`);
+      process.stderr.write(`stopped in: ${targetAbs} (${tagged && tagged.stage ? tagged.stage : 'unknown'})\n`);
+      throw err;
+    }
+    completed.push(result.cfgDirAbs);
     totals.written += result.counts.written;
     totals.replaced += result.counts.replaced;
     totals.unchanged += result.counts.unchanged;
