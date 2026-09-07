@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { parseArgs } = require('node:util');
-const { execFileSync } = require('node:child_process');
+const childProcess = require('node:child_process');
 
 const PLACEHOLDER = '@@CLAUDE_CONFIG_DIR@@';
 
@@ -22,7 +22,7 @@ const PLACEHOLDER = '@@CLAUDE_CONFIG_DIR@@';
  */
 
 /**
- * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, mcpOutcome: 'registered' | 'already-registered' }} DeployResult
+ * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, mcpOutcome: 'registered' | 'already-registered' | 'would-register' }} DeployResult
  */
 
 /**
@@ -205,14 +205,17 @@ function substitute(buffer, cfgDirAbs) {
 /**
  * Deploy a single file: substitute, then write only if the deployed bytes
  * differ from what already exists. Reports which of the three outcomes
- * occurred.
+ * occurred. Under `dryRun`, the identical discovery/substitution/comparison
+ * runs, but no directory or file is created — only the console line differs
+ * (`would write:`/`would replace:` instead of `writing:`/`replacing
+ * (content differs):`), so a dry-run log is never mistakable for a real one.
  * @param {string} src
  * @param {string} dest
  * @param {string} cfgDirAbs
+ * @param {boolean} [dryRun]
  * @returns {'unchanged' | 'written' | 'replaced'}
  */
-function deployFile(src, dest, cfgDirAbs) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
+function deployFile(src, dest, cfgDirAbs, dryRun) {
   const srcBuf = fs.readFileSync(src);
   const substituted = substitute(srcBuf, cfgDirAbs);
 
@@ -222,13 +225,18 @@ function deployFile(src, dest, cfgDirAbs) {
       console.log(`unchanged: ${dest}`);
       return 'unchanged';
     }
-    console.log(`replacing (content differs): ${dest}`);
-    fs.writeFileSync(dest, substituted);
+    console.log(`${dryRun ? 'would replace' : 'replacing (content differs)'}: ${dest}`);
+    if (!dryRun) {
+      fs.writeFileSync(dest, substituted);
+    }
     return 'replaced';
   }
 
-  console.log(`writing: ${dest}`);
-  fs.writeFileSync(dest, substituted);
+  console.log(`${dryRun ? 'would write' : 'writing'}: ${dest}`);
+  if (!dryRun) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, substituted);
+  }
   return 'written';
 }
 
@@ -241,9 +249,10 @@ function deployFile(src, dest, cfgDirAbs) {
  * @param {string} claudeBin
  * @param {ShaInfo} shaInfo
  * @param {string} repoSlug
+ * @param {boolean} [dryRun]
  * @returns {DeployResult}
  */
-function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug) {
+function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
   const cfgDirAbs = fs.realpathSync(path.resolve(cfgDir));
   console.log(`--- ${cfgDirAbs} ---`);
 
@@ -253,13 +262,13 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug) {
 
   for (const artifact of artifacts) {
     const dest = path.join(cfgDirAbs, artifact.rel);
-    const outcome = deployFile(artifact.abs, dest, cfgDirAbs);
+    const outcome = deployFile(artifact.abs, dest, cfgDirAbs, dryRun);
     counts[outcome] += 1;
     relPaths.push(artifact.rel);
   }
 
-  const mcpOutcome = registerVexpIfNeeded(cfgDirAbs, claudeBin);
-  writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths);
+  const mcpOutcome = registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun);
+  writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun);
 
   return { cfgDirAbs, counts, mcpOutcome };
 }
@@ -269,12 +278,14 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug) {
  * already present in `.claude.json`. Never hand-edits the JSON file. A
  * missing, empty, or unparsable `.claude.json` is treated as not-yet
  * registered. An empty-object `vexp` value counts as registered; a null
- * value does not.
+ * value does not. Under `dryRun`, states the decision without spawning the
+ * `claude` subprocess.
  * @param {string} cfgDirAbs
  * @param {string} claudeBin
- * @returns {'registered' | 'already-registered'}
+ * @param {boolean} [dryRun]
+ * @returns {'registered' | 'already-registered' | 'would-register'}
  */
-function registerVexpIfNeeded(cfgDirAbs, claudeBin) {
+function registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun) {
   const claudeJsonPath = path.join(cfgDirAbs, '.claude.json');
   let alreadyRegistered = false;
   try {
@@ -289,7 +300,12 @@ function registerVexpIfNeeded(cfgDirAbs, claudeBin) {
     return 'already-registered';
   }
 
-  execFileSync(
+  if (dryRun) {
+    console.log(`would register: vexp MCP server in ${cfgDirAbs}`);
+    return 'would-register';
+  }
+
+  childProcess.execFileSync(
     claudeBin,
     ['mcp', 'add', '-s', 'user', 'vexp', '--', 'vexp', 'mcp'],
     {
@@ -331,9 +347,11 @@ function findOwnInstalledSha(cliDirname) {
   }
 
   if (fs.existsSync(path.join(pkgRoot, '.git'))) {
-    const sha = execFileSync('git', ['-C', pkgRoot, 'rev-parse', 'HEAD'], {
-      encoding: 'utf8',
-    }).trim();
+    const sha = childProcess
+      .execFileSync('git', ['-C', pkgRoot, 'rev-parse', 'HEAD'], {
+        encoding: 'utf8',
+      })
+      .trim();
     return { sha, ref: 'local-clone', source: 'git' };
   }
 
@@ -397,14 +415,18 @@ async function checkStaleness(repoSlug, installedSha) {
  * Write the per-target install manifest. Written last, only after that
  * target's deploy and MCP registration have both succeeded. Rewritten with
  * a fresh timestamp on every successful run; exempt from the
- * diff-before-write rule.
+ * diff-before-write rule. Under `dryRun`, writes nothing (not even the
+ * containing directory).
  * @param {string} cfgDirAbs
  * @param {ShaInfo} shaInfo
  * @param {string} repoSlug
  * @param {string[]} relPaths
+ * @param {boolean} [dryRun]
  * @returns {void}
  */
-function writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths) {
+function writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun) {
+  if (dryRun) return;
+
   const manifestDir = path.join(cfgDirAbs, 'ai-dev');
   fs.mkdirSync(manifestDir, { recursive: true });
 
@@ -471,7 +493,8 @@ function printStalenessLine(pkgName, sha, staleness, repoSlug) {
  * @returns {Promise<void>}
  */
 async function main() {
-  const { positionals } = parseCliArgs(process.argv.slice(2));
+  const { values, positionals } = parseCliArgs(process.argv.slice(2));
+  const dryRun = values['dry-run'];
 
   if (positionals.length === 0) {
     process.stderr.write(
@@ -480,7 +503,8 @@ async function main() {
         "  directory (the value CLAUDE_CONFIG_DIR would point at), and registers the\n" +
         "  vexp MCP server there via 'claude mcp add'.\n" +
         '  Example (two profiles): npx github:Invoker-Software/ai-dev <path/to/first-config-dir> <path/to/second-config-dir>\n' +
-        "  This installer indexes nothing: run 'vexp index' once per repository you want indexed.\n"
+        "  This installer indexes nothing: run 'vexp index' once per repository you want indexed.\n" +
+        '  --dry-run prints the full plan and writes nothing.\n'
     );
     process.exit(1);
   }
@@ -502,11 +526,11 @@ async function main() {
   let alreadyRegistered = 0;
 
   for (const target of positionals) {
-    const result = deployTarget(target, artifacts, claudeBin, shaInfo, repoSlug);
+    const result = deployTarget(target, artifacts, claudeBin, shaInfo, repoSlug, dryRun);
     totals.written += result.counts.written;
     totals.replaced += result.counts.replaced;
     totals.unchanged += result.counts.unchanged;
-    if (result.mcpOutcome === 'registered') {
+    if (result.mcpOutcome === 'registered' || result.mcpOutcome === 'would-register') {
       registered += 1;
     } else {
       alreadyRegistered += 1;
