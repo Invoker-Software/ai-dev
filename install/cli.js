@@ -211,7 +211,11 @@ function discoverArtifacts(srcRoot) {
 function substitute(buffer, cfgDirAbs) {
   if (!buffer.includes(PLACEHOLDER)) return buffer;
   const text = buffer.toString('utf8');
-  return Buffer.from(text.replaceAll(PLACEHOLDER, cfgDirAbs), 'utf8');
+  // A replacer function (not a replacement string) is required: a string
+  // replacement is subject to $-pattern substitution (e.g. `$&`) even when
+  // the search value is a plain string, which would corrupt a config-dir
+  // path containing a literal `$&` (RESEARCH.md Assumptions Log A3).
+  return Buffer.from(text.replaceAll(PLACEHOLDER, () => cfgDirAbs), 'utf8');
 }
 
 /**
