@@ -1,0 +1,48 @@
+{
+  "id": "codebase-reindex",
+  "role": "feature",
+  "version": "1.0.0",
+  "title": "Codebase code-graph auto-reindex",
+  "description": "Re-index the @@CBM_PROJECT_NAME@@ codebase-memory-mcp code graph after GSD work that changes indexed files, best-effort and non-blocking.",
+  "tier": "full",
+  "requires": [],
+  "engines": {
+    "gsd": ">=1.6.0"
+  },
+  "runtimeCompat": {
+    "supported": ["*"],
+    "unsupported": []
+  },
+  "skills": [],
+  "agents": [],
+  "commands": [
+    {
+      "family": "codegraph",
+      "module": "codegraph-command.cjs",
+      "router": "route",
+      "subcommands": ["reindex"]
+    }
+  ],
+  "hooks": [],
+  "config": {
+    "workflow.codebase_reindex": {
+      "type": "boolean",
+      "default": true,
+      "description": "Re-index the codebase-memory-mcp code graph automatically after GSD work, at the execute:post loop point and on every Claude Code Stop event."
+    }
+  },
+  "steps": [
+    {
+      "point": "execute:post",
+      "ref": {
+        "command": "codegraph reindex"
+      },
+      "produces": [],
+      "consumes": [],
+      "when": "workflow.codebase_reindex",
+      "onError": "skip"
+    }
+  ],
+  "contributions": [],
+  "gates": []
+}
