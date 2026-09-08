@@ -38,10 +38,13 @@ test('a first deploy into an empty target reports writing: for every artifact an
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   const logs = captureLogs(() => {
     deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
@@ -59,10 +62,13 @@ test('an immediate second deploy reports unchanged: for every artifact and perfo
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
 
@@ -98,10 +104,13 @@ test('a deployed file whose content was altered reports replacing (content diffe
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
 
@@ -121,9 +130,23 @@ test('a deployed file whose content was altered reports replacing (content diffe
   assert.strictEqual(Buffer.compare(fs.readFileSync(destPath), canonicalBytes), 0);
 });
 
+// CHANGED (D-17 reordering): the obstruction below used to be a bare 0o444
+// (r--r--r--, no execute/search bit). Task 1 moved the MCP stage ahead of
+// file deploy, and the MCP stage's own `.claude.json` read needs directory
+// search (x) permission — 0o444 denies that, which would make the read
+// throw EACCES (silently swallowed as not-present/not-registered) and fall
+// through to a real, slow `claude mcp add` round trip against an unreadable
+// CLAUDE_CONFIG_DIR (observed: ~6.7s) before ever reaching the file-deploy
+// stage this test targets. Pre-seeding `.claude.json` as already-registered
+// plus 0o555 (r-xr-xr-x: search retained, write denied) keeps the MCP stage
+// a clean, subprocess-free no-op, isolating the obstruction to file deploy.
 test('a write into an unwritable directory throws in-process, tagged with the deploy stage', (t) => {
   const cfgDir = makeCfgDir();
-  fs.chmodSync(cfgDir, 0o444);
+  fs.writeFileSync(
+    path.join(cfgDir, '.claude.json'),
+    JSON.stringify({ mcpServers: { 'codebase-memory-mcp': {} } })
+  );
+  fs.chmodSync(cfgDir, 0o555);
   t.after(() => {
     fs.chmodSync(cfgDir, 0o755);
     fs.rmSync(cfgDir, { recursive: true, force: true });
@@ -148,9 +171,17 @@ test('a write into an unwritable directory throws in-process, tagged with the de
   );
 });
 
+// CHANGED (D-17 reordering): same 0o444 -> pre-seed + 0o555 correction as
+// the test above, for the same reason (this test drives the same code path
+// through a real subprocess, so the slow real `claude mcp add` round trip
+// would otherwise also land here).
 test('driven through the exported main, a write into an unwritable directory produces a non-zero process exit (CR-01)', (t) => {
   const cfgDir = makeCfgDir();
-  fs.chmodSync(cfgDir, 0o444);
+  fs.writeFileSync(
+    path.join(cfgDir, '.claude.json'),
+    JSON.stringify({ mcpServers: { 'codebase-memory-mcp': {} } })
+  );
+  fs.chmodSync(cfgDir, 0o555);
   t.after(() => {
     fs.chmodSync(cfgDir, 0o755);
     fs.rmSync(cfgDir, { recursive: true, force: true });

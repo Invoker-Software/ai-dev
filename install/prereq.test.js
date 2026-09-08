@@ -6,15 +6,15 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { checkPrerequisites, main } = require('./cli.js');
+const { checkPrerequisites, meetsVersionFloor, main } = require('./cli.js');
 
 function makeCfgDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-prereq-test-'));
-  // Pre-seed vexp as already registered so a `main()`-level run in this file
-  // never needs to shell out to the real `claude` binary.
+  // Pre-seed codebase-memory-mcp as already registered so a `main()`-level
+  // run in this file never needs to shell out to the real `claude` binary.
   fs.writeFileSync(
     path.join(dir, '.claude.json'),
-    JSON.stringify({ mcpServers: { vexp: {} } })
+    JSON.stringify({ mcpServers: { 'codebase-memory-mcp': {} } })
   );
   return dir;
 }
@@ -127,7 +127,7 @@ test('an invocation naming one valid and one invalid target writes zero files in
   );
 });
 
-test('the node-major-version gate and the vexp gate produce their own distinct error messages', (t) => {
+test('the node-major-version gate, the codebase-memory-mcp presence gate, and the version-floor gate each produce their own distinct, pairwise non-overlapping error message', (t) => {
   const dir = makeCfgDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -152,26 +152,105 @@ test('the node-major-version gate and the vexp gate produce their own distinct e
   }
   assert.match(nodeVersionMessage, /node/i);
   assert.match(nodeVersionMessage, />=\s*20|20/);
-  assert.doesNotMatch(nodeVersionMessage, /vexp/i);
+  assert.doesNotMatch(nodeVersionMessage, /required on PATH/i);
+  assert.doesNotMatch(nodeVersionMessage, /must be at least/i);
 
-  // Simulate the vexp gate by scoping PATH to a directory with no `vexp`
-  // executable (but which does still resolve the real `claude` binary via
-  // AI_DEV_CLAUDE_BIN, so the two gates stay independently reachable).
+  // Simulate the presence gate by scoping PATH to a directory with no
+  // `codebase-memory-mcp` executable (but which does still resolve the real
+  // `claude` binary via the ~/.local/bin fallback in resolveClaudeBin, so the
+  // three gates stay independently reachable).
+  const originalPath = process.env.PATH;
   const emptyPathDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-empty-path-'));
   t.after(() => fs.rmSync(emptyPathDir, { recursive: true, force: true }));
-  const originalPath = process.env.PATH;
   process.env.PATH = emptyPathDir;
-  let vexpMessage = '';
+  let presenceMessage = '';
   try {
     checkPrerequisites([dir]);
-    assert.fail('expected checkPrerequisites to throw when vexp is not on PATH');
+    assert.fail('expected checkPrerequisites to throw when codebase-memory-mcp is not on PATH');
   } catch (err) {
-    vexpMessage = err instanceof Error ? err.message : String(err);
+    presenceMessage = err instanceof Error ? err.message : String(err);
   } finally {
     process.env.PATH = originalPath;
   }
-  assert.match(vexpMessage, /vexp/i);
-  assert.doesNotMatch(vexpMessage, /node >=/i);
+  assert.match(presenceMessage, /codebase-memory-mcp/i);
+  assert.match(presenceMessage, /required on PATH/i);
+  assert.doesNotMatch(presenceMessage, /node >=/i);
+  assert.doesNotMatch(presenceMessage, /must be at least/i);
 
-  assert.notStrictEqual(nodeVersionMessage, vexpMessage);
+  // Simulate the version-floor gate: PATH scoped to a directory holding an
+  // executable stub named codebase-memory-mcp that reports a below-floor
+  // version.
+  const floorDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-floor-'));
+  t.after(() => fs.rmSync(floorDir, { recursive: true, force: true }));
+  const stubPath = path.join(floorDir, 'codebase-memory-mcp');
+  fs.writeFileSync(stubPath, '#!/bin/sh\necho "codebase-memory-mcp 0.10.7"\n');
+  fs.chmodSync(stubPath, 0o755);
+  process.env.PATH = `${floorDir}${path.delimiter}${originalPath}`;
+  let floorMessage = '';
+  try {
+    checkPrerequisites([dir]);
+    assert.fail('expected checkPrerequisites to throw for a below-floor version');
+  } catch (err) {
+    floorMessage = err instanceof Error ? err.message : String(err);
+  } finally {
+    process.env.PATH = originalPath;
+  }
+  assert.match(floorMessage, /0\.10\.8/);
+  assert.match(floorMessage, /must be at least/i);
+  assert.doesNotMatch(floorMessage, /node >=/i);
+  assert.doesNotMatch(floorMessage, /required on PATH/i);
+
+  assert.notStrictEqual(nodeVersionMessage, presenceMessage);
+  assert.notStrictEqual(nodeVersionMessage, floorMessage);
+  assert.notStrictEqual(presenceMessage, floorMessage);
+});
+
+test('neither the presence gate message nor the version-floor gate message names the unrelated elarsaks repo or recommends npm install', (t) => {
+  const dir = makeCfgDir();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const originalPath = process.env.PATH;
+  const emptyPathDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-empty-path-2-'));
+  t.after(() => fs.rmSync(emptyPathDir, { recursive: true, force: true }));
+  process.env.PATH = emptyPathDir;
+  let presenceMessage = '';
+  try {
+    checkPrerequisites([dir]);
+    assert.fail('expected checkPrerequisites to throw when codebase-memory-mcp is not on PATH');
+  } catch (err) {
+    presenceMessage = err instanceof Error ? err.message : String(err);
+  } finally {
+    process.env.PATH = originalPath;
+  }
+
+  assert.doesNotMatch(presenceMessage, /elarsaks/i);
+  assert.doesNotMatch(presenceMessage, /npm install/i);
+
+  const floorDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-floor-2-'));
+  t.after(() => fs.rmSync(floorDir, { recursive: true, force: true }));
+  const stubPath = path.join(floorDir, 'codebase-memory-mcp');
+  fs.writeFileSync(stubPath, '#!/bin/sh\necho "codebase-memory-mcp 0.10.0"\n');
+  fs.chmodSync(stubPath, 0o755);
+  process.env.PATH = `${floorDir}${path.delimiter}${originalPath}`;
+  let floorMessage = '';
+  try {
+    checkPrerequisites([dir]);
+    assert.fail('expected checkPrerequisites to throw for a below-floor version');
+  } catch (err) {
+    floorMessage = err instanceof Error ? err.message : String(err);
+  } finally {
+    process.env.PATH = originalPath;
+  }
+
+  assert.doesNotMatch(floorMessage, /elarsaks/i);
+  assert.doesNotMatch(floorMessage, /npm install/i);
+});
+
+test('meetsVersionFloor covers equal-to-floor, patch-above, patch-below, minor-above, major-below, and an unparsable input', () => {
+  assert.strictEqual(meetsVersionFloor('codebase-memory-mcp 0.10.8', '0.10.8'), true, 'equal-to-floor');
+  assert.strictEqual(meetsVersionFloor('codebase-memory-mcp 0.10.9', '0.10.8'), true, 'patch-above');
+  assert.strictEqual(meetsVersionFloor('codebase-memory-mcp 0.10.7', '0.10.8'), false, 'patch-below');
+  assert.strictEqual(meetsVersionFloor('codebase-memory-mcp 0.11.0', '0.10.8'), true, 'minor-above');
+  assert.strictEqual(meetsVersionFloor('codebase-memory-mcp 0.9.20', '1.0.0'), false, 'major-below');
+  assert.strictEqual(meetsVersionFloor('not a version string', '0.10.8'), false, 'unparsable');
 });

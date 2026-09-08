@@ -51,15 +51,19 @@ test('dry run against an empty target prints would-write for every artifact and 
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  const execMock = t.mock.method(childProcess, 'execFileSync', () => {
-    throw new Error('execFileSync must not be called during --dry-run');
-  });
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
   const before = listTree(cfgDir);
   assert.strictEqual(before.length, 0);
   assert.ok(artifacts.length > 0);
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary, and this test's assertion is specifically that
+  // deployTarget's *dry-run* path spawns nothing.
+  const execMock = t.mock.method(childProcess, 'execFileSync', () => {
+    throw new Error('execFileSync must not be called during --dry-run');
+  });
 
   const logs = captureLogs(() => {
     deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, true);
@@ -81,10 +85,13 @@ test('dry run against a correctly-deployed target reports everything unchanged a
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  const execMock = t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary; only the subsequent `claude mcp add` call is mocked.
+  const execMock = t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   // Real (non-dry) deploy first, to put the target in the "already correct" state.
   deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
@@ -113,10 +120,13 @@ test('dry run reports would-replace for a file whose content differs, and leaves
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary; only the subsequent `claude mcp add` call is mocked.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
 
@@ -138,7 +148,7 @@ test('dry run reports would-replace for a file whose content differs, and leaves
   assert.strictEqual(logs.filter((l) => l.startsWith('replacing (content differs): ')).length, 0);
 });
 
-test('dry run states vexp would be registered and never spawns the claude subprocess', (t) => {
+test('dry run states codebase-memory-mcp would be registered and never spawns the claude subprocess', (t) => {
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
@@ -154,8 +164,32 @@ test('dry run states vexp would be registered and never spawns the claude subpro
   });
 
   assert.strictEqual(execMock.mock.callCount(), 0);
-  assert.ok(logs.some((l) => l.startsWith('would register: vexp MCP server')));
-  assert.ok(!logs.some((l) => l.startsWith('registered: vexp MCP server')));
+  assert.ok(logs.some((l) => l.startsWith('would register: codebase-memory-mcp MCP server')));
+  assert.ok(!logs.some((l) => l.startsWith('registered: codebase-memory-mcp MCP server')));
+});
+
+test('dry run against a target carrying an old vexp entry prints would remove and spawns no removal subprocess (D-16/D-17)', (t) => {
+  const cfgDir = makeCfgDir();
+  t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(cfgDir, '.claude.json'),
+    JSON.stringify({ mcpServers: { vexp: { command: 'vexp' } } })
+  );
+
+  const artifacts = checkPrerequisites([cfgDir]);
+  const claudeBin = resolveClaudeBin();
+
+  const execMock = t.mock.method(childProcess, 'execFileSync', () => {
+    throw new Error('execFileSync must not be called during --dry-run');
+  });
+
+  const logs = captureLogs(() => {
+    deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, true);
+  });
+
+  assert.strictEqual(execMock.mock.callCount(), 0);
+  assert.ok(logs.some((l) => l.startsWith('would remove: vexp MCP server')));
+  assert.ok(logs.some((l) => l.startsWith('would register: codebase-memory-mcp MCP server')));
 });
 
 test('dry run against a nonexistent target aborts in the prerequisite gate exactly as a real run does', (t) => {
@@ -170,10 +204,13 @@ test('dry run against an empty target leaves no ai-dev/manifest.json', (t) => {
   const cfgDir = makeCfgDir();
   t.after(() => fs.rmSync(cfgDir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([cfgDir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   captureLogs(() => {
     deployTarget(cfgDir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, true);

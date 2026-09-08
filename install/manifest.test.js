@@ -29,10 +29,13 @@ test('after a successful target deploy the manifest carries a 40-hex sha, an all
   const dir = makeCfgDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([dir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
 
   deployTarget(dir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
 
@@ -51,10 +54,13 @@ test('the manifest carries no per-file content hash field (D-12)', (t) => {
   const dir = makeCfgDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-  t.mock.method(childProcess, 'execFileSync', () => ({}));
-
   const artifacts = checkPrerequisites([dir]);
   const claudeBin = resolveClaudeBin();
+
+  // Installed only now: checkPrerequisites above legitimately spawns
+  // `codebase-memory-mcp --version` (D-20's unconditional gate) against the
+  // real binary.
+  t.mock.method(childProcess, 'execFileSync', () => ({}));
   deployTarget(dir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath(dir), 'utf8'));
@@ -64,23 +70,32 @@ test('the manifest carries no per-file content hash field (D-12)', (t) => {
   assert.doesNotMatch(raw, /checksum/i);
 });
 
-test('when MCP registration throws, the target files are on disk but no manifest exists for it (D-13)', (t) => {
+// CHANGED (D-17 reordering): the original expectation here was "files
+// deployed but no manifest" — true only under the OLD order (file deploy
+// before MCP). Task 1 moved the MCP stage ahead of file deploy, so a target
+// whose MCP registration throws now never reaches the file-deploy loop at
+// all: the expectation inverts to "no files deployed, no manifest."
+test('when MCP registration throws, no files are deployed and no manifest exists for it, since the MCP stage now runs before file deploy (D-13, D-17)', (t) => {
   const dir = makeCfgDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const artifacts = checkPrerequisites([dir]);
+  const claudeBin = resolveClaudeBin();
 
   t.mock.method(childProcess, 'execFileSync', () => {
     throw new Error('simulated claude mcp add failure');
   });
-
-  const artifacts = checkPrerequisites([dir]);
-  const claudeBin = resolveClaudeBin();
 
   assert.throws(() => {
     deployTarget(dir, artifacts, claudeBin, DUMMY_SHA_INFO, DUMMY_REPO_SLUG, false);
   });
 
   for (const artifact of artifacts) {
-    assert.ok(fs.existsSync(path.join(dir, artifact.rel)), `${artifact.rel} should have been deployed`);
+    assert.strictEqual(
+      fs.existsSync(path.join(dir, artifact.rel)),
+      false,
+      `${artifact.rel} should not have been deployed: the MCP stage runs first and failed (D-17)`
+    );
   }
   assert.strictEqual(fs.existsSync(manifestPath(dir)), false);
 });

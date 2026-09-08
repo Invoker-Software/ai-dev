@@ -11,11 +11,12 @@ const { main } = require('./cli.js');
 
 function makeCfgDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-test-'));
-  // Pre-seed vexp as already registered so tests don't shell out to the real
-  // `claude` CLI unless a test explicitly wants to exercise that stage.
+  // Pre-seed codebase-memory-mcp as already registered so tests don't shell
+  // out to the real `claude` CLI unless a test explicitly wants to exercise
+  // that stage.
   fs.writeFileSync(
     path.join(dir, '.claude.json'),
-    JSON.stringify({ mcpServers: { vexp: {} } })
+    JSON.stringify({ mcpServers: { 'codebase-memory-mcp': {} } })
   );
   return dir;
 }
@@ -86,6 +87,20 @@ async function runMain(argv) {
   return { error, stderr: stderrChunks.join('\n'), stdout: stdoutChunks.join('\n') };
 }
 
+// CHANGED (D-17 reordering): the obstruction below used to be a bare 0o444
+// (r--r--r--, no execute/search bit). Task 1 moved the MCP stage ahead of
+// file deploy, and the MCP stage's own `fs.readFileSync(.claude.json)` needs
+// directory search (x) permission to even open a file that already exists —
+// 0o444 denies that, so with the old obstruction this test would have made
+// registerCodebaseMemoryIfNeeded's two reads throw EACCES (caught and
+// swallowed as not-present/not-registered) and then fall through to a REAL,
+// unmocked `claude mcp add` subprocess against an unwritable CLAUDE_CONFIG_DIR
+// — a nondeterministic dependency on the live `claude` binary's behavior that
+// this test never intended to exercise. 0o555 (r-xr-xr-x) keeps search
+// permission so the pre-seeded `.claude.json` still reads cleanly (the MCP
+// stage stays a clean no-op, exactly as before the reordering) while still
+// denying writes, so the obstruction remains isolated to the file-deploy
+// stage as originally designed.
 test('a mid-run failure on the second of two targets leaves the first with a manifest, the second without, and reports the abort', async (t) => {
   const a = makeCfgDir();
   const b = makeCfgDir();
@@ -95,7 +110,7 @@ test('a mid-run failure on the second of two targets leaves the first with a man
     fs.rmSync(b, { recursive: true, force: true });
   });
 
-  fs.chmodSync(b, 0o444);
+  fs.chmodSync(b, 0o555);
 
   const { error, stderr } = await runMain([a, b]);
 
@@ -110,6 +125,8 @@ test('a mid-run failure on the second of two targets leaves the first with a man
   assert.ok(stderr.includes(bAbs), 'stopped in: line should name the second target');
 });
 
+// CHANGED (D-17 reordering): same 0o444 -> 0o555 correction as the test
+// above, for the same reason — see that test's comment.
 test('re-running after the obstruction is removed converges without rollback: both targets end with manifests, exit succeeds', async (t) => {
   const a = makeCfgDir();
   const b = makeCfgDir();
@@ -118,7 +135,7 @@ test('re-running after the obstruction is removed converges without rollback: bo
     fs.rmSync(b, { recursive: true, force: true });
   });
 
-  fs.chmodSync(b, 0o444);
+  fs.chmodSync(b, 0o555);
   await runMain([a, b]);
   fs.chmodSync(b, 0o755);
 
@@ -132,7 +149,13 @@ test('re-running after the obstruction is removed converges without rollback: bo
   assert.ok(stdout.includes('unchanged: '));
 });
 
-test('a target whose MCP registration fails leaves its files deployed but writes no manifest for it', async (t) => {
+// CHANGED (D-17 reordering): this test's original expectation was
+// "leaves its files deployed but writes no manifest for it" — true only
+// under the OLD order (file deploy before MCP). Task 1 moved the MCP stage
+// ahead of file deploy, so a target whose MCP registration fails now never
+// reaches the file-deploy loop at all: the expectation inverts to "leaves no
+// files deployed and no manifest."
+test('a target whose MCP registration fails leaves no files deployed and no manifest, since the MCP stage now runs before file deploy (D-17)', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-test-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -155,7 +178,11 @@ test('a target whose MCP registration fails leaves its files deployed but writes
   assert.ok(error);
   assert.ok(!fs.existsSync(manifestPath(dir)));
   const deployed = fs.readdirSync(dir).filter((f) => f !== '.claude.json');
-  assert.ok(deployed.length > 0, 'files should have been deployed before the MCP stage failed');
+  assert.strictEqual(
+    deployed.length,
+    0,
+    'no files should have been deployed: the MCP stage now runs before file deploy and failed first (D-17)'
+  );
 });
 
 test('two targets where the first does not exist abort in the prerequisite gate before any target is touched', async (t) => {
