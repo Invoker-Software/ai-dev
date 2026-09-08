@@ -13,6 +13,8 @@ Dependency & Data Flow Analysis:
 - Downstream Impact: [DBs, external APIs, message queues touched]
 - Blast-radius evidence: [FULL | DEGRADED — state which tools were unavailable and what was used instead]
 
+Code Graph:
+- Indexed project: [name resolved from list_projects by matching this repo's git root against root_path, or UNINDEXED]
 Invariants & Guardrails:
 - Platform Conventions: [Auth middleware order, logging schema, error boundaries]
 - Do Not Touch: [Sensitive areas, shared libs to leave untouched]
