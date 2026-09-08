@@ -1,6 +1,6 @@
 ---
 name: adhoc-platform-task
-description: "Run an ad-hoc platform task through the dual-agent Vexp workflow — read-only investigation, then confined execution"
+description: "Run an ad-hoc platform task through the dual-agent code-graph workflow — read-only investigation, then confined execution"
 argument-hint: "[ad-hoc task description]"
 allowed-tools:
   - Task
@@ -12,8 +12,8 @@ allowed-tools:
 Ad-hoc platform tasks need a non-linear blast-radius map computed once, then a
 confined write pass guided by it. Two stages, in order:
 
-1. `adhoc-investigator` (read-only) explores the codebase via Vexp and writes
-   a distilled context slice.
+1. `adhoc-investigator` (read-only) explores the codebase through the
+   `codebase-memory-mcp` code graph and writes a distilled context slice.
 2. `adhoc-executor` (write-confined) performs the change, bounded to the file
    manifest that context slice names.
 
@@ -46,12 +46,15 @@ Stage 2:
 1. The Minimal File Manifest is non-empty and holds between 3 and 10 paths.
 2. Every path in the manifest exists on disk.
 3. The `Blast-radius evidence:` line is present.
+4. The `Indexed project:` line is present.
 
-If that line reports `DEGRADED`, surface it to the user verbatim before
+If the `Blast-radius evidence:` line reports `DEGRADED`, or the `Indexed
+project:` line reads `UNINDEXED`, surface it to the user verbatim before
 proceeding — a degraded manifest is a weaker authorisation than a full one,
 and on this installation degradation is the expected case, not an exception.
-If any of the three checks fails, report the failure and stop; do not
-dispatch Stage 2 against an invalid context file.
+An unindexed repository means Stage 2's blast-radius check cannot run at all.
+If any of the four checks fails, report the failure and stop; do not dispatch
+Stage 2 against an invalid context file.
 </stage_1>
 
 <stage_2>
