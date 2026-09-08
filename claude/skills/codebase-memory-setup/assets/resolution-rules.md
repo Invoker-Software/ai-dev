@@ -58,6 +58,19 @@ live and both are easy to get wrong:
    taken and what re-running the query costs, so a reader does not mistake a
    stale snapshot for a currently-accurate one.
 
+### What this rule defines, and what it does not
+
+Rule 2 defines the resolved snapshot value a consumer bakes in, not
+necessarily the whole set of paths that consumer ignores. A consumer may
+union the snapshot with paths its own installation creates, because such a
+path can never appear in the snapshot. `gsd-codebase-reindex`'s generated
+module does this today for `.gsd-capabilities.json`, the repository-root
+ledger file written by `capability install --scope project`, which is
+untracked and not gitignored and would otherwise make that module's
+no-change skip unreachable. The accepted consequence: a change to such a
+path alone no longer triggers the consumer's refresh, which is correct for
+a machine-local ledger and would not be correct for source.
+
 ## Rule 3 — The binary path
 
 Resolve the absolute path of the `codebase-memory-mcp` executable with

@@ -26,11 +26,22 @@ const REINDEX_TIMEOUT_MS = 120000;
 const FALLBACK_BINARY = '@@CBM_BINARY@@';
 const PROJECT_NAME = '@@CBM_PROJECT_NAME@@';
 
+// Paths this mechanism's own installation creates, which the resolved
+// snapshot below can never contain -- that snapshot's resolution rule (see
+// the shared resolution-rules.md) only ever yields directories.
+// `capability install --scope project` writes `.gsd-capabilities.json` at
+// the repository root as a ledger file; it is untracked and not
+// gitignored, so it is a FILE the snapshot can never list. Without this
+// entry the change gate sees that ledger file as modified on every
+// invocation, and the no-change skip decision below is unreachable in
+// every repository where this capability is installed.
+const SELF_ARTIFACT_DENY_LIST = ['.gsd-capabilities.json'];
+
 // Authoritative deny-list -- a snapshot of `check_index_coverage`'s live
 // `not_indexed.dirs` for this repository, resolved by the skill at run time
 // per the shared resolution rules it cites, and baked in here deliberately
 // so the skip path never pays for a live query.
-const DENY_LIST = @@CBM_DENY_LIST@@;
+const DENY_LIST = @@CBM_DENY_LIST@@.concat(SELF_ARTIFACT_DENY_LIST);
 
 function isDenied(relPath) {
   return DENY_LIST.some((d) => relPath === d || relPath.startsWith(d + '/'));
