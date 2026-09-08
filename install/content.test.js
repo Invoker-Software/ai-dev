@@ -145,6 +145,7 @@ test('no discovered file claims a retired tool this server does not expose', () 
 
 // Assertion 3 — both agents carry the wildcard allowlist on their `tools:`
 // frontmatter line.
+/** @param {string} rel */
 function assertWildcardAllowlist(rel) {
   const abs = mustFind(rel);
   const frontmatter = frontmatterOf(readText(abs));
