@@ -119,25 +119,45 @@ function writeMarker(mainRoot, marker) {
 // No file contents are read, so a large untracked artifact cannot push the
 // skip path over its budget.
 //
-// Status lines are read under git's default quoting: a path git quotes
-// (unusual bytes, absent core.quotePath=false) does not resolve to a stat
-// and contributes its status line alone.
+// Status is read with `-z`, which emits NUL-terminated entries and NEVER
+// quotes a path. Reading newline-delimited output instead would be a
+// correctness bug, not a style choice: git quotes any path containing a
+// space, so ` M "my file.ts"` would be stat'ed as the literal quoted text,
+// fail, and fall back to a constant stamp -- making that file's signature
+// identical across every edit and skipping the refresh it needs. Note that
+// `core.quotePath=false` does NOT avoid this; it suppresses only the
+// escaping of non-ASCII bytes. Only `-z` removes quoting outright.
+function dirtyEntries(statusOutput) {
+  // `-z` fields: `XY <path>` per entry. A rename or copy carries its origin
+  // path as the FOLLOWING field, which must be consumed rather than parsed
+  // as an entry of its own.
+  const fields = String(statusOutput || '').split('\0');
+  const entries = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const field = fields[i];
+    if (!field) continue;
+    const code = field.slice(0, 2);
+    const relPath = field.slice(3);
+    if (code[0] === 'R' || code[0] === 'C') i += 1;
+    if (!relPath) continue;
+    entries.push({ code, relPath });
+  }
+  return entries;
+}
+
 function dirtySignature(mainRoot, statusOutput) {
   const entries = [];
-  for (const line of String(statusOutput || '').split('\n')) {
-    if (!line) continue;
-    const rest = line.slice(3);
-    const relPath = rest.includes(' -> ') ? rest.split(' -> ')[1] : rest;
+  for (const { code, relPath } of dirtyEntries(statusOutput)) {
     if (isDenied(relPath)) continue;
     let stamp = 'absent';
     try {
       const st = fs.statSync(path.join(mainRoot, relPath), { bigint: true });
       stamp = st.size + ':' + st.mtimeNs;
     } catch (_) {
-      // Deleted, or a path this parser cannot resolve. The status line
-      // itself still tells that state apart from an unmodified one.
+      // Deleted since `git status` ran. The status code still tells that
+      // state apart from an unmodified one.
     }
-    entries.push(line.slice(0, 2) + ' | ' + relPath + ' | ' + stamp);
+    entries.push(code + ' | ' + relPath + ' | ' + stamp);
   }
   entries.sort();
   return digestOf(entries.join('\n'));
@@ -170,7 +190,7 @@ function computeChangeSet(mainRoot, marker) {
     }
   }
 
-  const status = spawnSync('git', ['-C', mainRoot, 'status', '--porcelain=v1', '-uall'], { encoding: 'utf8' });
+  const status = spawnSync('git', ['-C', mainRoot, 'status', '--porcelain=v1', '-z', '-uall'], { encoding: 'utf8' });
   if (status.error || status.status !== 0) {
     unknown = true;
   }

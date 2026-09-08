@@ -240,3 +240,24 @@ test('marker damage is fail-open: a marker missing dirty_digest, or one that is 
   fs.writeFileSync(markerPath, 'not valid json{{{');
   assert.strictEqual(run().decision, 'reindexed');
 });
+
+// CR-01. git quotes any path containing a space, so newline-delimited
+// `--porcelain=v1` reports `?? "my file.txt"` with the quotes as literal
+// text. Stat'ing that string fails, the stamp falls back to a constant, and
+// the file's signature stops changing when its content does -- a silently
+// stale graph. Reading `-z` output removes quoting outright. A space is
+// enough; this needs no exotic bytes, and core.quotePath=false does not fix
+// it. Regression guard: reverting to newline parsing turns the third
+// assertion below into skipped-no-change.
+test('a path git would quote is still tracked by content: a filename with a space re-indexes when it changes', (t) => {
+  const { repo, run } = makeRepo(t);
+  const spaced = path.join(repo, 'my component.txt');
+  fs.writeFileSync(spaced, 'dirty\n');
+
+  assert.strictEqual(run().decision, 'reindexed');
+  assert.strictEqual(run().decision, 'skipped-no-change');
+
+  fs.writeFileSync(spaced, 'dirty, but a longer and different body now\n');
+  assert.strictEqual(run().decision, 'reindexed', 'a quoted path must not go blind to its own content change');
+  assert.strictEqual(run().decision, 'skipped-no-change');
+});
