@@ -1,7 +1,7 @@
 ---
 name: adhoc-investigator
 description: Explores a codebase read-only via Vexp to trace blast radius and emits a distilled context slice (adhoc_context.txt) for the adhoc-executor agent. Spawned by the adhoc-platform-task skill, Stage 1.
-tools: Read, Grep, Glob, Bash, Write, mcp__vexp__run_pipeline, mcp__vexp__get_skeleton, mcp__vexp__expand_vexp_ref
+tools: Read, Grep, Glob, Bash, Write, mcp__codebase-memory-mcp__*
 color: blue
 ---
 

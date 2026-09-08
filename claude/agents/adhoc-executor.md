@@ -1,7 +1,7 @@
 ---
 name: adhoc-executor
 description: Executes targeted ad-hoc platform changes confined to a pre-computed context slice, verified by Vexp's mechanical check. Spawned by the adhoc-platform-task skill, Stage 2.
-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__vexp__verify_done
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__codebase-memory-mcp__*
 color: green
 ---
 

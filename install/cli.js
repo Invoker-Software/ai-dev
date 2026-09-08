@@ -8,6 +8,7 @@ const { parseArgs } = require('node:util');
 const childProcess = require('node:child_process');
 
 const PLACEHOLDER = '@@CLAUDE_CONFIG_DIR@@';
+const CODEBASE_MEMORY_VERSION_FLOOR = '0.10.8';
 
 /**
  * @typedef {{ abs: string, rel: string }} Artifact
@@ -22,7 +23,11 @@ const PLACEHOLDER = '@@CLAUDE_CONFIG_DIR@@';
  */
 
 /**
- * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, mcpOutcome: 'registered' | 'already-registered' | 'would-register' }} DeployResult
+ * @typedef {{ removal: 'removed' | 'not-present' | 'would-remove' | 'removal-failed', registration: 'registered' | 'already-registered' | 'would-register' }} McpOutcome
+ */
+
+/**
+ * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, mcpOutcome: McpOutcome }} DeployResult
  */
 
 /**
@@ -116,11 +121,30 @@ function resolveClaudeBin() {
 }
 
 /**
+ * Compare a `--version` stdout string against a `major.minor.patch` floor.
+ * Matches the first `\d+\.\d+\.\d+` occurrence in `versionOutput`; returns
+ * `false` when nothing matches. Equality with the floor passes.
+ * @param {string} versionOutput
+ * @param {string} floor
+ * @returns {boolean}
+ */
+function meetsVersionFloor(versionOutput, floor) {
+  const match = versionOutput.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return false;
+  const [maj, min, patch] = match.slice(1).map(Number);
+  const [fMaj, fMin, fPatch] = floor.split('.').map(Number);
+  if (maj !== fMaj) return maj > fMaj;
+  if (min !== fMin) return min > fMin;
+  return patch >= fPatch;
+}
+
+/**
  * Validate every prerequisite for a run before any file is written:
- * Node version floor, `vexp` on PATH, a resolvable `claude` binary, every
- * named target existing as a directory, and at least one discoverable
- * artifact. Returns the discovered artifacts on success. This gate is
- * unconditional — `--dry-run` shares it exactly, with no branching.
+ * Node version floor, `codebase-memory-mcp` on PATH at or above the pinned
+ * version floor, a resolvable `claude` binary, every named target existing
+ * as a directory, and at least one discoverable artifact. Returns the
+ * discovered artifacts on success. This gate is unconditional — `--dry-run`
+ * shares it exactly, with no branching.
  * @param {string[]} targets
  * @returns {Artifact[]}
  */
@@ -130,8 +154,32 @@ function checkPrerequisites(targets) {
     throw new Error(`node >= 20 required, found ${process.version}`);
   }
 
-  if (!whichExecutable('vexp')) {
-    throw new Error("'vexp' is required on PATH");
+  const codebaseMemoryBin = whichExecutable('codebase-memory-mcp');
+  if (!codebaseMemoryBin) {
+    throw new Error(
+      "'codebase-memory-mcp' is required on PATH.\n" +
+        'Upstream: github.com/DeusData/codebase-memory-mcp (MIT).\n' +
+        'Install: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config\n' +
+        '--skip-config is deliberate: the unflagged installer and the npm package both write agent, MCP and hook configuration across many client surfaces without asking.\n' +
+        "Default install location is ~/.local/bin, which a non-login shell's PATH may not carry."
+    );
+  }
+
+  let versionOutput;
+  try {
+    versionOutput = childProcess.execFileSync(codebaseMemoryBin, ['--version'], {
+      encoding: 'utf8',
+    });
+  } catch {
+    versionOutput = '';
+  }
+  if (!meetsVersionFloor(versionOutput, CODEBASE_MEMORY_VERSION_FLOOR)) {
+    throw new Error(
+      `'codebase-memory-mcp' must be at least ${CODEBASE_MEMORY_VERSION_FLOOR}, found: ${
+        versionOutput.trim() || '(unparsable output)'
+      }.\n` +
+        'Upgrade: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config'
+    );
   }
 
   resolveClaudeBin();
@@ -257,12 +305,15 @@ function deployFile(src, dest, cfgDirAbs, dryRun) {
 }
 
 /**
- * Deploy every discovered artifact into one target config directory, then
- * register vexp if needed, then write the manifest — in that order, so an
- * interrupted run never leaves a manifest claiming work that did not finish.
- * Each stage's error is tagged with `err.stage` (`'deploy' | 'mcp' |
- * 'manifest'`) so a caller looping over several targets can report exactly
- * where a mid-run failure stopped.
+ * Register codebase-memory-mcp (removing any leftover vexp registration
+ * best-effort) into one target config directory, then deploy every
+ * discovered artifact, then write the manifest — in that order (D-17). Each
+ * stage's error is tagged with `err.stage` (`'deploy' | 'mcp' | 'manifest'`)
+ * so a caller looping over several targets can report exactly where a
+ * mid-run failure stopped. Consequence of this ordering: a target that
+ * fails during file deploy now leaves a registration behind and no
+ * manifest — the manifest stays the sole record that a deploy completed,
+ * never a statement that MCP registration alone succeeded.
  * @param {string} cfgDir
  * @param {Artifact[]} artifacts
  * @param {string} claudeBin
@@ -274,6 +325,13 @@ function deployFile(src, dest, cfgDirAbs, dryRun) {
 function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
   const cfgDirAbs = fs.realpathSync(path.resolve(cfgDir));
   console.log(`--- ${cfgDirAbs} ---`);
+
+  let mcpOutcome;
+  try {
+    mcpOutcome = registerCodebaseMemoryIfNeeded(cfgDirAbs, claudeBin, dryRun);
+  } catch (err) {
+    throw tagStage(err, 'mcp');
+  }
 
   const counts = { written: 0, replaced: 0, unchanged: 0 };
   /** @type {string[]} */
@@ -290,13 +348,6 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
     throw tagStage(err, 'deploy');
   }
 
-  let mcpOutcome;
-  try {
-    mcpOutcome = registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun);
-  } catch (err) {
-    throw tagStage(err, 'mcp');
-  }
-
   try {
     writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun);
   } catch (err) {
@@ -307,47 +358,96 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
 }
 
 /**
- * Register the vexp MCP server in a target config directory unless it is
- * already present in `.claude.json`. Never hand-edits the JSON file. A
- * missing, empty, or unparsable `.claude.json` is treated as not-yet
- * registered. An empty-object `vexp` value counts as registered; a null
- * value does not. Under `dryRun`, states the decision without spawning the
- * `claude` subprocess.
+ * Registers codebase-memory-mcp in a target config directory, best-effort
+ * removing any leftover vexp registration first. Two check-before-mutate
+ * operations against the target's own `.claude.json`, in this order:
+ *
+ * 1. Removal (best effort, D-16/D-17). A truthy `mcpServers.vexp` is
+ *    treated as present; absent, unreadable or unparsable is `not-present`
+ *    and spawns no subprocess. Under `dryRun`, a present entry yields
+ *    `would-remove` with no subprocess. Otherwise `claude mcp remove -s
+ *    user vexp` is spawned; a throw is swallowed, warned about on stderr,
+ *    and yields `removal-failed` — this is the first deliberately
+ *    non-fatal operation in this installer, because nothing about the new
+ *    install depends on the old entry being gone.
+ * 2. Registration (fatal, D-13). `.claude.json` is re-read after the
+ *    removal attempt so the decision reflects the post-removal state. An
+ *    empty-object `codebase-memory-mcp` value counts as registered; a null
+ *    value does not; a missing, unreadable or unparsable file counts as
+ *    not registered. Under `dryRun`, states the decision without spawning.
+ *    A throw from the `claude mcp add` subprocess propagates.
+ *
+ * Never hand-edits the JSON file.
  * @param {string} cfgDirAbs
  * @param {string} claudeBin
  * @param {boolean} [dryRun]
- * @returns {'registered' | 'already-registered' | 'would-register'}
+ * @returns {McpOutcome}
  */
-function registerVexpIfNeeded(cfgDirAbs, claudeBin, dryRun) {
+function registerCodebaseMemoryIfNeeded(cfgDirAbs, claudeBin, dryRun) {
   const claudeJsonPath = path.join(cfgDirAbs, '.claude.json');
+
+  const readVexpPresent = () => {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
+      return Boolean(parsed.mcpServers && parsed.mcpServers.vexp);
+    } catch {
+      return false;
+    }
+  };
+
+  /** @type {McpOutcome['removal']} */
+  let removal;
+  if (!readVexpPresent()) {
+    removal = 'not-present';
+  } else if (dryRun) {
+    console.log(`would remove: vexp MCP server in ${cfgDirAbs}`);
+    removal = 'would-remove';
+  } else {
+    try {
+      childProcess.execFileSync(claudeBin, ['mcp', 'remove', '-s', 'user', 'vexp'], {
+        env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDirAbs },
+        stdio: 'ignore',
+      });
+      console.log(`removed: vexp MCP server in ${cfgDirAbs}`);
+      removal = 'removed';
+    } catch (err) {
+      process.stderr.write(
+        `Warning: failed to remove vexp MCP server in ${cfgDirAbs}: ${errMessage(err)}\n`
+      );
+      removal = 'removal-failed';
+    }
+  }
+
   let alreadyRegistered = false;
   try {
     const parsed = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
-    alreadyRegistered = Boolean(parsed.mcpServers && parsed.mcpServers.vexp);
+    alreadyRegistered = Boolean(
+      parsed.mcpServers && parsed.mcpServers['codebase-memory-mcp']
+    );
   } catch {
     alreadyRegistered = false;
   }
 
   if (alreadyRegistered) {
-    console.log(`already registered: vexp MCP server in ${cfgDirAbs}`);
-    return 'already-registered';
+    console.log(`already registered: codebase-memory-mcp MCP server in ${cfgDirAbs}`);
+    return { removal, registration: 'already-registered' };
   }
 
   if (dryRun) {
-    console.log(`would register: vexp MCP server in ${cfgDirAbs}`);
-    return 'would-register';
+    console.log(`would register: codebase-memory-mcp MCP server in ${cfgDirAbs}`);
+    return { removal, registration: 'would-register' };
   }
 
   childProcess.execFileSync(
     claudeBin,
-    ['mcp', 'add', '-s', 'user', 'vexp', '--', 'vexp', 'mcp'],
+    ['mcp', 'add', '-s', 'user', 'codebase-memory-mcp', '--', 'codebase-memory-mcp'],
     {
       env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDirAbs },
       stdio: 'ignore',
     }
   );
-  console.log(`registered: vexp MCP server in ${cfgDirAbs}`);
-  return 'registered';
+  console.log(`registered: codebase-memory-mcp MCP server in ${cfgDirAbs}`);
+  return { removal, registration: 'registered' };
 }
 
 /**
@@ -535,26 +635,38 @@ function writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun) {
 }
 
 /**
- * @typedef {{ written: number, replaced: number, unchanged: number, targets: number, registered: number, alreadyRegistered: number }} SummaryCounts
+ * @typedef {{ written: number, replaced: number, unchanged: number, targets: number, registered: number, alreadyRegistered: number, removed: number, removalFailed: number }} SummaryCounts
  */
 
 /**
  * Format the closing summary line printed after every target has been
- * processed.
+ * processed. Names codebase-memory-mcp for the registration clause and, per
+ * D-17, appends a removal clause so the best-effort vexp removal outcome is
+ * visible on the summary line rather than only in a warning. The removal
+ * clause is omitted entirely when both its counters are zero.
  * @param {SummaryCounts} counts
  * @returns {string}
  */
 function formatSummary(counts) {
   /** @type {string} */
-  let vexpPart;
+  let mcpPart;
   if (counts.registered > 0 && counts.alreadyRegistered > 0) {
-    vexpPart = `vexp registered in ${counts.registered} target(s), already registered in ${counts.alreadyRegistered}`;
+    mcpPart = `codebase-memory-mcp registered in ${counts.registered} target(s), already registered in ${counts.alreadyRegistered}`;
   } else if (counts.registered > 0) {
-    vexpPart = `vexp registered in ${counts.registered} target(s)`;
+    mcpPart = `codebase-memory-mcp registered in ${counts.registered} target(s)`;
   } else {
-    vexpPart = `vexp already registered in ${counts.alreadyRegistered} target(s)`;
+    mcpPart = `codebase-memory-mcp already registered in ${counts.alreadyRegistered} target(s)`;
   }
-  return `${counts.written} written, ${counts.replaced} replaced, ${counts.unchanged} unchanged across ${counts.targets} target(s), ${vexpPart}`;
+
+  let removalPart = '';
+  if (counts.removed > 0 || counts.removalFailed > 0) {
+    removalPart =
+      counts.removalFailed > 0
+        ? `, vexp removed from ${counts.removed} target(s), removal failed for ${counts.removalFailed}`
+        : `, vexp removed from ${counts.removed} target(s)`;
+  }
+
+  return `${counts.written} written, ${counts.replaced} replaced, ${counts.unchanged} unchanged across ${counts.targets} target(s), ${mcpPart}${removalPart}`;
 }
 
 /**
@@ -589,9 +701,9 @@ async function main() {
       'Usage: npx github:Invoker-Software/ai-dev <config-dir> [<config-dir> ...]\n' +
         '  Deploys the ai-dev skills and agents into each named Claude Code config\n' +
         "  directory (the value CLAUDE_CONFIG_DIR would point at), and registers the\n" +
-        "  vexp MCP server there via 'claude mcp add'.\n" +
+        "  codebase-memory-mcp MCP server there via 'claude mcp add'.\n" +
         '  Example (two profiles): npx github:Invoker-Software/ai-dev <path/to/first-config-dir> <path/to/second-config-dir>\n' +
-        "  This installer indexes nothing: run 'vexp index' once per repository you want indexed.\n" +
+        '  This installer indexes nothing: run the codebase-memory-setup skill once per repository you want indexed.\n' +
         '  --dry-run prints the full plan and writes nothing.\n'
     );
     process.exit(1);
@@ -612,6 +724,8 @@ async function main() {
   const totals = { written: 0, replaced: 0, unchanged: 0 };
   let registered = 0;
   let alreadyRegistered = 0;
+  let removed = 0;
+  let removalFailed = 0;
   /** @type {string[]} */
   const completed = [];
 
@@ -631,10 +745,21 @@ async function main() {
     totals.written += result.counts.written;
     totals.replaced += result.counts.replaced;
     totals.unchanged += result.counts.unchanged;
-    if (result.mcpOutcome === 'registered' || result.mcpOutcome === 'would-register') {
+    if (
+      result.mcpOutcome.registration === 'registered' ||
+      result.mcpOutcome.registration === 'would-register'
+    ) {
       registered += 1;
     } else {
       alreadyRegistered += 1;
+    }
+    if (
+      result.mcpOutcome.removal === 'removed' ||
+      result.mcpOutcome.removal === 'would-remove'
+    ) {
+      removed += 1;
+    } else if (result.mcpOutcome.removal === 'removal-failed') {
+      removalFailed += 1;
     }
   }
 
@@ -644,6 +769,8 @@ async function main() {
       targets: positionals.length,
       registered,
       alreadyRegistered,
+      removed,
+      removalFailed,
     })
   );
   console.log('Done.');
@@ -654,12 +781,13 @@ module.exports = {
   parseCliArgs,
   whichExecutable,
   resolveClaudeBin,
+  meetsVersionFloor,
   checkPrerequisites,
   discoverArtifacts,
   substitute,
   deployFile,
   deployTarget,
-  registerVexpIfNeeded,
+  registerCodebaseMemoryIfNeeded,
   findOwnInstalledSha,
   checkStaleness,
   writeManifest,
