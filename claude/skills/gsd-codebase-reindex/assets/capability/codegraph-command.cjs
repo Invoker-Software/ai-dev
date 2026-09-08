@@ -26,16 +26,20 @@ const REINDEX_TIMEOUT_MS = 120000;
 const FALLBACK_BINARY = '@@CBM_BINARY@@';
 const PROJECT_NAME = '@@CBM_PROJECT_NAME@@';
 
-// Paths this mechanism's own installation creates, which the resolved
-// snapshot below can never contain -- that snapshot's resolution rule (see
-// the shared resolution-rules.md) only ever yields directories.
+// Paths this mechanism's own installation creates. The resolved snapshot
+// below cannot be relied on to carry them: that snapshot's resolution rule
+// (see the shared resolution-rules.md) only ever yields directories, and it
+// is taken BEFORE this capability is installed, so even the directories
+// this installation creates are absent from it.
 // `capability install --scope project` writes `.gsd-capabilities.json` at
-// the repository root as a ledger file; it is untracked and not
-// gitignored, so it is a FILE the snapshot can never list. Without this
-// entry the change gate sees that ledger file as modified on every
-// invocation, and the no-change skip decision below is unreachable in
-// every repository where this capability is installed.
-const SELF_ARTIFACT_DENY_LIST = ['.gsd-capabilities.json'];
+// the repository root as a ledger file, and `.gsd/` as the state directory
+// holding this module's own marker, decision log and staged copy. Both are
+// untracked, neither is gitignored in every repository, and both are
+// rewritten by this module's own invocations. Left in the change set they
+// make the module observe its own writes as repository changes, and the
+// no-change skip decision below becomes unreachable in every repository
+// where this capability is installed.
+const SELF_ARTIFACT_DENY_LIST = ['.gsd-capabilities.json', '.gsd'];
 
 // Authoritative deny-list -- a snapshot of `check_index_coverage`'s live
 // `not_indexed.dirs` for this repository, resolved by the skill at run time
@@ -96,24 +100,57 @@ function writeMarker(mainRoot, marker) {
   }
 }
 
-function parseStatusPaths(output) {
-  const paths = [];
-  for (const line of output.split('\n')) {
+// A signature of every non-denied path the working tree is dirty at right
+// now, each stamped with the size and nanosecond mtime that tell one edit
+// of a file apart from the next. The previous invocation recorded this
+// value in the marker; comparing the two is what makes the decision below
+// "did anything change SINCE THE LAST RUN" rather than "is anything dirty
+// RIGHT NOW". The latter can never become false while any non-denied path
+// stays dirty, which is what made the no-change skip unreachable.
+//
+// Denied paths are dropped BEFORE stamping, and that is load-bearing: this
+// module's own decision log lives under `.gsd` (see
+// SELF_ARTIFACT_DENY_LIST) and its mtime changes on every invocation, so
+// stamping it would make the signature differ every run.
+//
+// The size stamp catches an edit that changes a file's length; the mtime
+// stamp catches a same-length rewrite. An edit that preserves both is not
+// detected -- the same bound every mtime-based staleness check carries.
+// No file contents are read, so a large untracked artifact cannot push the
+// skip path over its budget.
+//
+// Status lines are read under git's default quoting: a path git quotes
+// (unusual bytes, absent core.quotePath=false) does not resolve to a stat
+// and contributes its status line alone.
+function dirtySignature(mainRoot, statusOutput) {
+  const entries = [];
+  for (const line of String(statusOutput || '').split('\n')) {
     if (!line) continue;
     const rest = line.slice(3);
-    if (rest.includes(' -> ')) {
-      paths.push(rest.split(' -> ')[1]);
-    } else {
-      paths.push(rest);
+    const relPath = rest.includes(' -> ') ? rest.split(' -> ')[1] : rest;
+    if (isDenied(relPath)) continue;
+    let stamp = 'absent';
+    try {
+      const st = fs.statSync(path.join(mainRoot, relPath), { bigint: true });
+      stamp = st.size + ':' + st.mtimeNs;
+    } catch (_) {
+      // Deleted, or a path this parser cannot resolve. The status line
+      // itself still tells that state apart from an unmodified one.
     }
+    entries.push(line.slice(0, 2) + ' | ' + relPath + ' | ' + stamp);
   }
-  return paths;
+  entries.sort();
+  return digestOf(entries.join('\n'));
 }
 
-// Returns { unknown: boolean, paths: string[] }
+// Returns { unknown: boolean, committedPaths: string[], statusOutput: string }.
+// `committedPaths` covers only what landed in commits since the marker's
+// head_sha. The working tree's dirty set is carried out as raw status
+// output and compared by signature, not by path, so a path that was
+// already dirty at the last invocation does not read as a new change.
 function computeChangeSet(mainRoot, marker) {
   let unknown = false;
-  const changed = [];
+  const committed = [];
 
   if (!marker || !marker.head_sha) {
     unknown = true;
@@ -128,7 +165,7 @@ function computeChangeSet(mainRoot, marker) {
       if (diff.error || diff.status !== 0) {
         unknown = true;
       } else {
-        changed.push(...diff.stdout.split('\n').filter(Boolean));
+        committed.push(...diff.stdout.split('\n').filter(Boolean));
       }
     }
   }
@@ -136,11 +173,9 @@ function computeChangeSet(mainRoot, marker) {
   const status = spawnSync('git', ['-C', mainRoot, 'status', '--porcelain=v1', '-uall'], { encoding: 'utf8' });
   if (status.error || status.status !== 0) {
     unknown = true;
-  } else {
-    changed.push(...parseStatusPaths(status.stdout));
   }
 
-  return { unknown, paths: [...new Set(changed)], statusOutput: status.stdout || '' };
+  return { unknown, committedPaths: [...new Set(committed)], statusOutput: status.stdout || '' };
 }
 
 function currentHeadSha(mainRoot) {
@@ -210,13 +245,26 @@ function route({ args }) {
 
     const marker = readMarker(mainRoot);
     const changeSet = computeChangeSet(mainRoot, marker);
-    const needsReindex = changeSet.unknown || changeSet.paths.some((p) => !isDenied(p));
+    const dirtyDigest = dirtySignature(mainRoot, changeSet.statusOutput);
+
+    // Three independent reasons to re-index, in fail-open order: we cannot
+    // tell what changed; a commit landed on a non-denied path since the
+    // last invocation; or the non-denied dirty set is not the one the last
+    // invocation already indexed. The third is the comparison the marker's
+    // dirty_digest field exists for. A marker written before that
+    // comparison existed carries no such field, reads as changed, and costs
+    // exactly one extra re-index before converging.
+    const needsReindex =
+      changeSet.unknown ||
+      changeSet.committedPaths.some((p) => !isDenied(p)) ||
+      !marker ||
+      marker.dirty_digest !== dirtyDigest;
 
     if (!needsReindex) {
       const headSha = currentHeadSha(mainRoot);
       writeMarker(mainRoot, {
         head_sha: headSha || (marker && marker.head_sha) || '',
-        dirty_digest: digestOf(changeSet.statusOutput),
+        dirty_digest: dirtyDigest,
         updated_at: new Date().toISOString(),
       });
       appendLog(mainRoot, logLine(via, 'skipped-no-change', Date.now() - startedAt));
@@ -232,9 +280,12 @@ function route({ args }) {
     }
 
     const headSha = currentHeadSha(mainRoot);
+    // dirtyDigest was taken BEFORE the re-index started, deliberately: an
+    // edit made while the re-index was in flight is not folded into the
+    // recorded state, so the next invocation still refreshes for it.
     writeMarker(mainRoot, {
       head_sha: headSha || '',
-      dirty_digest: digestOf(changeSet.statusOutput),
+      dirty_digest: dirtyDigest,
       updated_at: new Date().toISOString(),
     });
     appendLog(mainRoot, logLine(via, 'reindexed', Date.now() - startedAt));

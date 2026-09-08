@@ -63,13 +63,17 @@ live and both are easy to get wrong:
 Rule 2 defines the resolved snapshot value a consumer bakes in, not
 necessarily the whole set of paths that consumer ignores. A consumer may
 union the snapshot with paths its own installation creates, because such a
-path can never appear in the snapshot. `gsd-codebase-reindex`'s generated
-module does this today for `.gsd-capabilities.json`, the repository-root
-ledger file written by `capability install --scope project`, which is
-untracked and not gitignored and would otherwise make that module's
-no-change skip unreachable. The accepted consequence: a change to such a
-path alone no longer triggers the consumer's refresh, which is correct for
-a machine-local ledger and would not be correct for source.
+path either cannot appear in a directories-only snapshot at all, or did not
+exist when the snapshot was taken. `gsd-codebase-reindex`'s generated
+module does this today for two paths: `.gsd-capabilities.json`, the
+repository-root ledger file written by `capability install --scope
+project`, which is untracked and not gitignored; and `.gsd/`, the state
+directory holding that module's own marker, decision log and staged copy,
+which is untracked in a repository that does not gitignore it. Left out of
+the union, either would otherwise make that module's no-change skip
+unreachable. The accepted consequence: a change to such a path alone no
+longer triggers the consumer's refresh, which is correct for machine-local
+state and would not be correct for source.
 
 ## Rule 3 — The binary path
 
