@@ -69,6 +69,78 @@ function parseLastLogLine(logPath) {
 }
 
 /**
+ * Parses every line of a decision log into a structured record, including
+ * the trailing `repo=` field a linked-repository line carries and a main
+ * line does not.
+ *
+ * @param {string} logPath
+ * @returns {{ decision: string, elapsed_ms: number, repo: string | undefined }[]}
+ */
+function parseAllLogLines(logPath) {
+  if (!fs.existsSync(logPath)) return [];
+  const content = fs.readFileSync(logPath, 'utf8');
+  return content
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const decisionMatch = /decision=(\S+)/.exec(line);
+      const elapsedMatch = /elapsed_ms=(\d+)/.exec(line);
+      const repoMatch = /repo=(\S+)/.exec(line);
+      return {
+        decision: decisionMatch ? decisionMatch[1] : '',
+        elapsed_ms: elapsedMatch ? Number(elapsedMatch[1]) : NaN,
+        repo: repoMatch ? repoMatch[1] : undefined,
+      };
+    });
+}
+
+/**
+ * Parses the fake indexer's invocation log -- one tab-joined argv per line,
+ * written by the stub written in `makeRepo` -- into an array of argv
+ * arrays, in invocation order.
+ *
+ * @param {string} invocationsLogPath
+ * @returns {string[][]}
+ */
+function parseInvocations(invocationsLogPath) {
+  if (!fs.existsSync(invocationsLogPath)) return [];
+  const content = fs.readFileSync(invocationsLogPath, 'utf8');
+  return content
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => line.split('\t'));
+}
+
+/**
+ * Builds a second, independent git repository under `root` (init, one
+ * commit, no `.planning/` -- linked repositories need none) for use as a
+ * tracked symlink's target.
+ *
+ * @param {string} root
+ * @param {string} name
+ * @returns {string} the new repository's absolute path
+ */
+function buildLinkedRepo(root, name) {
+  const linkedRepo = path.join(root, name);
+  fs.mkdirSync(linkedRepo, { recursive: true });
+  execFileSync('git', ['init', '-q', '-b', 'main', linkedRepo]);
+  execFileSync('git', ['-C', linkedRepo, 'config', 'user.email', 'test@example.invalid']);
+  execFileSync('git', ['-C', linkedRepo, 'config', 'user.name', 'reindex-gate-test']);
+  execFileSync('git', ['-C', linkedRepo, 'config', 'commit.gpgsign', 'false']);
+  fs.writeFileSync(path.join(linkedRepo, 'README.md'), 'linked\n');
+  execFileSync('git', ['-C', linkedRepo, 'add', '-A']);
+  execFileSync('git', ['-C', linkedRepo, 'commit', '-q', '-m', 'initial']);
+  return linkedRepo;
+}
+
+// A tracked symlink whose target contains this string, anywhere in its
+// resolved path, makes the fake indexer stub exit 3 for that invocation
+// only -- every other invocation (main or a different linked repository)
+// still exits 0. This is what lets Task 2's isolation test fail exactly one
+// linked repository while the main repository keeps succeeding.
+const FAILURE_MARKER = 'FORCE-REINDEX-FAILURE';
+
+/**
  * Builds a fresh git repository under a temp directory, renders the module
  * under test into it (from the SHIPPED TEMPLATE, or from
  * `CBM_TEMPLATE_OVERRIDE` when set -- the hook the mutation-proof verify
@@ -78,9 +150,12 @@ function parseLastLogLine(logPath) {
  * @param {{ gitignore?: string, denyList?: string }} [opts]
  * @returns {{
  *   repo: string,
+ *   root: string,
  *   run: () => { decision: string, elapsed_ms: number },
  *   commit: (relPath: string, content: string) => void,
  *   mod: any,
+ *   invocations: () => string[][],
+ *   decisionLines: () => { decision: string, elapsed_ms: number, repo: string | undefined }[],
  * }}
  */
 function makeRepo(t, opts = {}) {
@@ -89,6 +164,7 @@ function makeRepo(t, opts = {}) {
 
   const repo = path.join(root, 'repo');
   const binDir = path.join(root, 'bin');
+  const invocationsLog = path.join(root, 'invocations.log');
   fs.mkdirSync(repo, { recursive: true });
   fs.mkdirSync(binDir, { recursive: true });
   // resolveMainRoot() requires .planning/ under the resolved main root.
@@ -96,8 +172,21 @@ function makeRepo(t, opts = {}) {
 
   // The fake indexer -- runReindex()'s bare-name PATH lookup finds this
   // once binDir is prepended below, so the real binary is never invoked.
+  // It logs its own argv, tab-joined, to `invocations.log` -- deliberately
+  // OUTSIDE `repo`, since writing inside the checkout would perturb the
+  // dirty signature and break the existing skip tests. It exits 3 when any
+  // argument contains FAILURE_MARKER, and exits 0 otherwise.
   const fakeBinary = path.join(binDir, 'codebase-memory-mcp');
-  fs.writeFileSync(fakeBinary, '#!/bin/sh\nexit 0\n');
+  fs.writeFileSync(
+    fakeBinary,
+    '#!/bin/sh\n' +
+      "IFS=\"$(printf '\\t')\"\n" +
+      `echo "$*" >> "${invocationsLog}"\n` +
+      'for a in "$@"; do\n' +
+      `  case "$a" in\n    *${FAILURE_MARKER}*) exit 3 ;;\n  esac\n` +
+      'done\n' +
+      'exit 0\n',
+  );
   fs.chmodSync(fakeBinary, 0o755);
 
   execFileSync('git', ['init', '-q', '-b', 'main', repo]);
@@ -162,7 +251,15 @@ function makeRepo(t, opts = {}) {
     execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'auto-committed for test']);
   }
 
-  return { repo, run, commit, mod };
+  function invocations() {
+    return parseInvocations(invocationsLog);
+  }
+
+  function decisionLines() {
+    return parseAllLogLines(path.join(repo, '.gsd', 'codebase-reindex.log'));
+  }
+
+  return { repo, root, run, commit, mod, invocations, decisionLines };
 }
 
 test('the locked export contract: sole export route, synchronous, quiet outside a git repo', (t) => {
@@ -271,4 +368,64 @@ test('a path git would quote is still tracked by content: a filename with a spac
   fs.writeFileSync(spaced, 'dirty, but a longer and different body now\n');
   assert.strictEqual(run().decision, 'reindexed', 'a quoted path must not go blind to its own content change');
   assert.strictEqual(run().decision, 'skipped-no-change');
+});
+
+// D-01..D-04. `dev` is a tracked symlink pointing at a real, separate git
+// repository (ai-dev). The main checkout's own change gate is structurally
+// blind to edits inside it, so this repository must be re-indexed on every
+// run, unconditionally, including a run whose main decision is
+// `skipped-no-change`.
+test('a tracked symlink to a git repository is re-indexed alongside the main decision, on every run including a skip', (t) => {
+  const { repo, root, run, invocations, decisionLines } = makeRepo(t);
+  const linkedRepo = buildLinkedRepo(root, 'linked-repo');
+  const linkedRealpath = fs.realpathSync(linkedRepo);
+  const linkedName = path.basename(linkedRealpath);
+
+  fs.symlinkSync(linkedRepo, path.join(repo, 'dev'));
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'add dev symlink']);
+  const tracked = execFileSync('git', ['-C', repo, 'ls-files', '-s', 'dev'], { encoding: 'utf8' });
+  assert.match(tracked, /^120000 /, 'dev must be tracked at mode 120000');
+
+  // run()'s own return is parseLastLogLine -- once a linked line exists,
+  // the LAST line is the linked line, not the main one. Read the main
+  // repository's own decision from decisionLines() (lines with no `repo`
+  // field) instead of trusting run()'s return value here.
+  run();
+  let lines = decisionLines();
+  let mainLines = lines.filter((d) => d.repo === undefined);
+  let linkedLines = lines.filter((d) => d.decision === 'linked-reindexed');
+  assert.strictEqual(mainLines.length, 1);
+  assert.strictEqual(mainLines[0].decision, 'reindexed');
+  assert.strictEqual(linkedLines.length, 1);
+  assert.strictEqual(linkedLines[0].repo, linkedName);
+
+  run();
+  lines = decisionLines();
+  mainLines = lines.filter((d) => d.repo === undefined);
+  linkedLines = lines.filter((d) => d.decision === 'linked-reindexed');
+  assert.strictEqual(mainLines.length, 2);
+  assert.strictEqual(mainLines[1].decision, 'skipped-no-change');
+  assert.strictEqual(linkedLines.length, 2, 'a linked-reindexed line must still be emitted on a main skip run');
+
+  const linkedInvocations = invocations().filter((argv) => argv[argv.length - 1] === linkedName);
+  assert.strictEqual(linkedInvocations.length, 2);
+  assert.deepStrictEqual(linkedInvocations[0], [
+    'cli',
+    'index_repository',
+    '--repo-path',
+    linkedRealpath,
+    '--mode',
+    'moderate',
+    '--name',
+    linkedName,
+  ]);
+});
+
+test('a repository with no tracked symlinks emits zero linked decision lines', (t) => {
+  const { run, decisionLines } = makeRepo(t);
+  run();
+  run();
+  const linesWithRepo = decisionLines().filter((d) => d.repo !== undefined);
+  assert.deepStrictEqual(linesWithRepo, []);
 });
