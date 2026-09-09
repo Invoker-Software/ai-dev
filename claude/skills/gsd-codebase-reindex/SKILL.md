@@ -196,13 +196,19 @@ the config directory this runtime is using.
 
 Run the reindex command once manually and show the resulting line from
 `<root>/.gsd/codebase-reindex.log`. Run it a second time with nothing
-changed and show that the decision is the no-change skip and how long it
-took — the skip path is the one that must stay cheap, and the budget is
-under 1.5 seconds.
+changed and show that the main decision is the no-change skip and how long
+it took — the skip path is the one that must stay cheap, and the budget is
+under 1.5 seconds. If the repository has any tracked symlink to a git
+repository, that budget attaches to the main decision's own `elapsed_ms`
+only: a `linked-reindexed` (or `linked-failed-<reason>`) line for each
+linked repository appears in the log AFTER the main decision line on both
+runs, since those repositories are refreshed unconditionally on every
+invocation regardless of the main decision.
 
 Report: the resolved project name, the deny-list entry count, that the
-capability step is listed, and whether the `Stop` hook file was created or
-merged.
+capability step is listed, whether the `Stop` hook file was created or
+merged, and — if any linked repository was re-indexed — its name and
+decision on both runs.
 
 </procedure>
 

@@ -101,10 +101,22 @@ entry point.
 Every invocation of either mechanism appends one line to
 `<mainRoot>/.gsd/codebase-reindex.log` (also gitignored), recording an ISO
 timestamp, `via=loop` or `via=stop-hook`, the decision
-(`reindexed` / `skipped-no-change` / `skipped-disabled` / `failed-<reason>`),
-and elapsed milliseconds (`elapsed_ms=`). This is the durable evidence a
-`Stop` hook fired, since a `Stop` hook cannot be observed from inside the
-turn that registers it.
+(`reindexed` / `skipped-no-change` / `skipped-disabled` / `failed-<reason>` /
+`linked-reindexed` / `linked-failed-<reason>`), and elapsed milliseconds
+(`elapsed_ms=`). A `linked-*` decision also carries a trailing
+`repo=<name>` field naming the linked repository's own basename. This is
+the durable evidence a `Stop` hook fired, since a `Stop` hook cannot be
+observed from inside the turn that registers it.
+
+Every git repository reached through a tracked symlink in the main
+checkout (for example a `dev -> ../ai-dev` symlink) is refreshed on every
+invocation, unconditionally, with no change detection of its own. This is
+because the main repository's own `git status`/`git diff` can never
+observe edits made inside a symlinked sibling repository — git tracks the
+symlink itself as a small blob, never the target's contents — so the
+existing marker/dirty-digest gate is structurally blind to it. A failing
+linked repository logs its own `linked-failed-<reason>` line and never
+affects the main repository's decision or marker.
 
 ## Known limitation
 
