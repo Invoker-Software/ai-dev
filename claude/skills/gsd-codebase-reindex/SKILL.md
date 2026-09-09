@@ -74,6 +74,25 @@ Two properties belong to this skill rather than to the shared rules:
 - The deny list is baked in as a **snapshot**, deliberately, so the skip
   path never pays for a live query. Refresh it by re-running this skill if
   the repository's excluded directories change.
+- Because it is a snapshot, Rule 2 obliges whoever bakes it into a generated
+  file to record when it was taken and what re-running the query costs — a
+  reader must not mistake a stale list for a currently-accurate one. Time the
+  `check_index_coverage` call you just made, count the entries it returned,
+  and carry both into `@@CBM_DENY_LIST_PROVENANCE@@`, a comment block of the
+  shape:
+
+  ```
+  //
+  // SNAPSHOT TAKEN <ISO date> (<N> directory entries). It is not a live query:
+  // a directory excluded from the index after that date is absent here, and a
+  // change under it will wrongly trigger a re-index. Refreshing means re-running
+  // `gsd-codebase-reindex`; the underlying query
+  // (`codebase-memory-mcp cli check_index_coverage --project <name> --scopes .`)
+  // costs ~<measured>s, which is why it is not paid on the skip path.
+  ```
+
+  Measure the cost on this machine rather than copying a number from another
+  repository — it scales with the size of the graph being queried.
 - The binary path is machine-local on purpose — it is the fallback the
   generated module uses when a hook's minimal environment does not carry
   the directory the binary lives in.
@@ -82,7 +101,7 @@ Two properties belong to this skill rather than to the shared rules:
 
 Read the three template files from
 `@@CLAUDE_CONFIG_DIR@@/skills/gsd-codebase-reindex/assets/capability/`.
-Substitute the three tokens with Step 2's values and write the result to
+Substitute the four tokens with Step 2's values and write the result to
 `<root>/.planning/capabilities/codebase-reindex/` — a tracked location, so
 the bundle a teammate needs in order to re-establish the mechanism travels
 with the repository even though the installation itself does not.

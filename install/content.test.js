@@ -296,11 +296,11 @@ test('nothing recommends an unverified acquisition path', () => {
 });
 
 // Assertion 10 — the capability template is still a template.
-test('the shipped capability template still carries all three substitution tokens', () => {
+test('the shipped capability template still carries all four substitution tokens', () => {
   const content = readText(
     mustFind('skills/gsd-codebase-reindex/assets/capability/codegraph-command.cjs')
   );
-  for (const token of ['@@CBM_PROJECT_NAME@@', '@@CBM_DENY_LIST@@', '@@CBM_BINARY@@']) {
+  for (const token of ['@@CBM_PROJECT_NAME@@', '@@CBM_DENY_LIST@@', '@@CBM_BINARY@@', '@@CBM_DENY_LIST_PROVENANCE@@']) {
     assert.ok(content.includes(token), `codegraph-command.cjs is missing unsubstituted token ${token}`);
   }
 });

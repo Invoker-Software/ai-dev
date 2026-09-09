@@ -5,7 +5,7 @@
 // (.claude/settings.json). ONE module, ONE marker file, ONE decision log --
 // do not fork this logic; both entry points call `route()`.
 //
-// TEMPLATE FILE -- not runnable until the three @@CBM_*@@ tokens below are
+// TEMPLATE FILE -- not runnable until the four @@CBM_*@@ tokens below are
 // substituted. The `gsd-codebase-reindex` skill performs that substitution
 // against the repository it is run in. A copy of this file still containing
 // any `@@CBM_` token has been deployed rather than generated and will fail.
@@ -45,6 +45,7 @@ const SELF_ARTIFACT_DENY_LIST = ['.gsd-capabilities.json', '.gsd'];
 // `not_indexed.dirs` for this repository, resolved by the skill at run time
 // per the shared resolution rules it cites, and baked in here deliberately
 // so the skip path never pays for a live query.
+@@CBM_DENY_LIST_PROVENANCE@@
 const DENY_LIST = @@CBM_DENY_LIST@@.concat(SELF_ARTIFACT_DENY_LIST);
 
 function isDenied(relPath) {

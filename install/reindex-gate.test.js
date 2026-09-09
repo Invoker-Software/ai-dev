@@ -119,9 +119,20 @@ function makeRepo(t, opts = {}) {
   rendered = rendered.split('@@CBM_PROJECT_NAME@@').join('reindex-gate-test');
   rendered = rendered.split('@@CBM_BINARY@@').join(fakeBinary);
   rendered = rendered.split('@@CBM_DENY_LIST@@').join(denyList);
-  for (const token of ['@@CBM_PROJECT_NAME@@', '@@CBM_BINARY@@', '@@CBM_DENY_LIST@@']) {
-    assert.ok(!rendered.includes(token), `rendered module must not retain unsubstituted token ${token}`);
-  }
+  rendered = rendered.split('@@CBM_DENY_LIST_PROVENANCE@@').join(
+    '//\n// SNAPSHOT TAKEN 2026-01-01 (1 directory entries). It is not a live query:\n' +
+    '// a directory excluded from the index after that date is absent here, and a\n' +
+    '// change under it will wrongly trigger a re-index. Refreshing means re-running\n' +
+    '// `gsd-codebase-reindex`; the underlying query\n' +
+    '// (`codebase-memory-mcp cli check_index_coverage --project reindex-gate-test --scopes .`)\n' +
+    '// costs ~0.0s, which is why it is not paid on the skip path.',
+  );
+  // Generic: any @@CBM_ token this helper does not know about is a rendering
+  // gap, not a passing test. Enumerating the known three let a fourth token
+  // reach require() as bare text and fail every test in this file with a
+  // SyntaxError instead of a legible message.
+  const leftover = rendered.match(/@@CBM_[A-Z_]*@@/);
+  assert.ok(!leftover, `rendered module must not retain unsubstituted token ${leftover && leftover[0]}`);
 
   const modulePath = path.join(root, 'codegraph-command.cjs');
   fs.writeFileSync(modulePath, rendered);
