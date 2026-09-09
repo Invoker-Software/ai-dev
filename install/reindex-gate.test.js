@@ -429,3 +429,87 @@ test('a repository with no tracked symlinks emits zero linked decision lines', (
   const linesWithRepo = decisionLines().filter((d) => d.repo !== undefined);
   assert.deepStrictEqual(linesWithRepo, []);
 });
+
+// T-QH-01. A resolved symlink target is indexed only when it exists, is a
+// directory, and is itself the toplevel of its own git repository. This
+// test builds one of each disqualifying shape, plus a relative-target
+// symlink to a genuine sibling repository (the real `dev` link stores an
+// absolute target, so relative resolution has no production witness) and
+// one genuine absolute-target linked repository, and asserts the survivor
+// set is exactly the two genuine repositories.
+test('enumeration: dangling, non-repo, file, and relative-target symlinks are filtered; only genuine repos survive', (t) => {
+  const { repo, root, run, invocations } = makeRepo(t);
+
+  const absLinkedRepo = buildLinkedRepo(root, 'abs-linked-repo');
+  const absLinkedRealpath = fs.realpathSync(absLinkedRepo);
+
+  const siblingRepo = buildLinkedRepo(root, 'sibling-repo');
+  const siblingRealpath = fs.realpathSync(siblingRepo);
+
+  const plainDir = path.join(root, 'plain-dir');
+  fs.mkdirSync(plainDir);
+
+  const nonexistent = path.join(root, 'does-not-exist');
+
+  const regularFile = path.join(root, 'a-file.txt');
+  fs.writeFileSync(regularFile, 'not a directory\n');
+
+  fs.symlinkSync(absLinkedRepo, path.join(repo, 'link-abs-repo'));
+  fs.symlinkSync(plainDir, path.join(repo, 'link-plain-dir'));
+  fs.symlinkSync(nonexistent, path.join(repo, 'link-dangling'));
+  fs.symlinkSync(regularFile, path.join(repo, 'link-file'));
+  // `repo` and `sibling-repo` are both direct children of `root`, so
+  // `../sibling-repo` is the correct relative target from inside `repo`.
+  fs.symlinkSync(path.join('..', 'sibling-repo'), path.join(repo, 'link-relative-repo'));
+
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'add edge-case symlinks']);
+
+  assert.doesNotThrow(() => run());
+
+  // The main repository's own invocation carries PROJECT_NAME
+  // ('reindex-gate-test', per makeRepo's substitution); every other
+  // invocation is a linked repository's.
+  const linkedRepoPaths = invocations()
+    .filter((argv) => argv[argv.indexOf('--name') + 1] !== 'reindex-gate-test')
+    .map((argv) => argv[argv.indexOf('--repo-path') + 1]);
+
+  assert.deepStrictEqual(new Set(linkedRepoPaths), new Set([absLinkedRealpath, siblingRealpath]));
+});
+
+// T-QH-04. A linked repository's failure must never block or corrupt the
+// main repository's own decision or marker.
+test('isolation: a failing linked repository logs its own failure and never touches the main decision or marker', (t) => {
+  const { repo, root, run, decisionLines } = makeRepo(t);
+  const failingRepo = buildLinkedRepo(root, FAILURE_MARKER + '-repo');
+  const failingName = path.basename(fs.realpathSync(failingRepo));
+
+  fs.symlinkSync(failingRepo, path.join(repo, 'failing-link'));
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'add failing linked repo']);
+
+  run();
+  run();
+
+  const markerPath = path.join(repo, '.gsd', 'codebase-reindex-state.json');
+  const markerBefore = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+
+  run();
+
+  const markerAfter = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+
+  const lines = decisionLines();
+  const mainLines = lines.filter((d) => d.repo === undefined);
+  assert.deepStrictEqual(
+    mainLines.map((d) => d.decision),
+    ['reindexed', 'skipped-no-change', 'skipped-no-change'],
+  );
+
+  const failureLines = lines.filter((d) => d.decision === 'linked-failed-nonzero-exit-3' && d.repo === failingName);
+  assert.strictEqual(failureLines.length, 3, 'a linked-failed-nonzero-exit-3 line must be present on every run');
+
+  assert.strictEqual(markerAfter.head_sha, markerBefore.head_sha);
+  assert.strictEqual(markerAfter.dirty_digest, markerBefore.dirty_digest);
+  // updated_at moves -- that is the existing skip-path behaviour, not a
+  // regression to fix here.
+});
