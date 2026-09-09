@@ -209,8 +209,8 @@ function digestOf(text) {
   return crypto.createHash('sha256').update(text || '').digest('hex');
 }
 
-function runReindex(mainRoot) {
-  const args = ['cli', 'index_repository', '--repo-path', mainRoot, '--mode', 'moderate', '--name', PROJECT_NAME];
+function runReindex(mainRoot, projectName) {
+  const args = ['cli', 'index_repository', '--repo-path', mainRoot, '--mode', 'moderate', '--name', projectName];
   let res = spawnSync('codebase-memory-mcp', args, { timeout: REINDEX_TIMEOUT_MS, stdio: 'ignore' });
   if (res.error && res.error.code === 'ENOENT') {
     res = spawnSync(FALLBACK_BINARY, args, { timeout: REINDEX_TIMEOUT_MS, stdio: 'ignore' });
@@ -247,6 +247,158 @@ function parseVia(args) {
   return 'loop';
 }
 
+// Enumerates git repositories reached through a tracked symlink in
+// `mainRoot`, at runtime -- no baked snapshot, no hardcoded path (D-03).
+// `git ls-files -s -z`'s verified layout is `<mode> SP <sha> SP <stage> TAB
+// <path>` per NUL-terminated entry; `-z` is used for the same reason
+// `computeChangeSet`'s `git status -z` is -- it disables git's path
+// quoting outright, which `core.quotePath=false` does not. Returns an empty
+// array on any git failure, and drops any entry that is dangling, not a
+// directory, or not the toplevel of its own git repository -- including a
+// self-referential link back to `mainRoot` itself.
+function linkedRepoRoots(mainRoot) {
+  const res = spawnSync('git', ['-C', mainRoot, 'ls-files', '-s', '-z'], { encoding: 'utf8' });
+  if (res.error || res.status !== 0) return [];
+
+  let mainRealpath;
+  try {
+    mainRealpath = fs.realpathSync(mainRoot);
+  } catch (_) {
+    return [];
+  }
+
+  const fields = String(res.stdout || '').split('\0');
+  const resolvedTargets = new Set();
+  for (const field of fields) {
+    if (!field) continue;
+    if (field.slice(0, 6) !== '120000') continue; // not a symlink entry
+    const tabIdx = field.indexOf('\t');
+    if (tabIdx === -1) continue;
+    const relPath = field.slice(tabIdx + 1);
+    if (!relPath) continue;
+
+    let target;
+    try {
+      const linkAbsPath = path.join(mainRoot, relPath);
+      const rawTarget = fs.readlinkSync(linkAbsPath);
+      // Resolve both an absolute and a relative stored target correctly --
+      // a relative target resolves against the LINK's own directory, not
+      // against mainRoot.
+      const candidate = path.isAbsolute(rawTarget)
+        ? rawTarget
+        : path.resolve(path.dirname(linkAbsPath), rawTarget);
+      target = fs.realpathSync(candidate); // throws if dangling/unreadable
+    } catch (_) {
+      continue; // dangling or unreadable -- skip, never throw
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(target);
+    } catch (_) {
+      continue;
+    }
+    if (!stat.isDirectory()) continue; // also spares a subprocess for a file-symlink
+
+    if (target === mainRealpath) continue; // self-referential link
+    resolvedTargets.add(target);
+  }
+
+  const survivors = [];
+  for (const target of resolvedTargets) {
+    const top = spawnSync('git', ['-C', target, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+    if (top.error || top.status !== 0 || !top.stdout) continue; // not a git repo at all
+    let topRealpath;
+    try {
+      topRealpath = fs.realpathSync(top.stdout.trim());
+    } catch (_) {
+      continue;
+    }
+    // Keep only when the target IS the repository's own toplevel -- this
+    // rejects a link into a subdirectory of some other repository, and a
+    // link to a plain (non-repository) directory.
+    if (topRealpath === target) survivors.push(target);
+  }
+
+  return survivors.sort();
+}
+
+// Re-indexes every linked repository unconditionally on every firing (D-02
+// -- no change detection, no marker, no dirty_digest for these). A failure
+// on one never returns early, never throws, and never touches the main
+// repository's decision or marker (T-QH-04).
+function reindexLinkedRepos(mainRoot, via) {
+  const roots = linkedRepoRoots(mainRoot);
+  for (const root of roots) {
+    const name = path.basename(root);
+    const startedAt = Date.now();
+    const res = runReindex(root, name);
+    if (res.error || res.status !== 0) {
+      const reason = reindexFailureReason(res);
+      appendLog(mainRoot, logLine(via, 'linked-failed-' + reason, Date.now() - startedAt, name));
+      console.log('codegraph reindex: linked failed (' + name + ': ' + reason + ')');
+      continue;
+    }
+    appendLog(mainRoot, logLine(via, 'linked-reindexed', Date.now() - startedAt, name));
+    console.log('codegraph reindex: linked reindexed ' + name);
+  }
+}
+
+// The main checkout's own change-gated decision -- unchanged logic, moved
+// verbatim out of `route` so `route` can run the linked pass after it
+// returns. `startedAt` is taken at `route` entry and threaded through here
+// so this decision's own `elapsed_ms` never folds in the (separate, always
+// unconditional) linked pass's cost.
+function runMainDecision(mainRoot, via, startedAt) {
+  const marker = readMarker(mainRoot);
+  const changeSet = computeChangeSet(mainRoot, marker);
+  const dirtyDigest = dirtySignature(mainRoot, changeSet.statusOutput);
+
+  // Three independent reasons to re-index, in fail-open order: we cannot
+  // tell what changed; a commit landed on a non-denied path since the
+  // last invocation; or the non-denied dirty set is not the one the last
+  // invocation already indexed. The third is the comparison the marker's
+  // dirty_digest field exists for. A marker written before that
+  // comparison existed carries no such field, reads as changed, and costs
+  // exactly one extra re-index before converging.
+  const needsReindex =
+    changeSet.unknown ||
+    changeSet.committedPaths.some((p) => !isDenied(p)) ||
+    !marker ||
+    marker.dirty_digest !== dirtyDigest;
+
+  if (!needsReindex) {
+    const headSha = currentHeadSha(mainRoot);
+    writeMarker(mainRoot, {
+      head_sha: headSha || (marker && marker.head_sha) || '',
+      dirty_digest: dirtyDigest,
+      updated_at: new Date().toISOString(),
+    });
+    appendLog(mainRoot, logLine(via, 'skipped-no-change', Date.now() - startedAt));
+    console.log('codegraph reindex: skipped (no indexed path changed)');
+    return;
+  }
+
+  const res = runReindex(mainRoot, PROJECT_NAME);
+  if (res.error || res.status !== 0) {
+    appendLog(mainRoot, logLine(via, 'failed-' + reindexFailureReason(res), Date.now() - startedAt));
+    console.log('codegraph reindex: failed (' + reindexFailureReason(res) + ')');
+    return;
+  }
+
+  const headSha = currentHeadSha(mainRoot);
+  // dirtyDigest was taken BEFORE the re-index started, deliberately: an
+  // edit made while the re-index was in flight is not folded into the
+  // recorded state, so the next invocation still refreshes for it.
+  writeMarker(mainRoot, {
+    head_sha: headSha || '',
+    dirty_digest: dirtyDigest,
+    updated_at: new Date().toISOString(),
+  });
+  appendLog(mainRoot, logLine(via, 'reindexed', Date.now() - startedAt));
+  console.log('codegraph reindex: reindexed ' + mainRoot);
+}
+
 function route({ args }) {
   const startedAt = Date.now();
   try {
@@ -264,53 +416,8 @@ function route({ args }) {
       return;
     }
 
-    const marker = readMarker(mainRoot);
-    const changeSet = computeChangeSet(mainRoot, marker);
-    const dirtyDigest = dirtySignature(mainRoot, changeSet.statusOutput);
-
-    // Three independent reasons to re-index, in fail-open order: we cannot
-    // tell what changed; a commit landed on a non-denied path since the
-    // last invocation; or the non-denied dirty set is not the one the last
-    // invocation already indexed. The third is the comparison the marker's
-    // dirty_digest field exists for. A marker written before that
-    // comparison existed carries no such field, reads as changed, and costs
-    // exactly one extra re-index before converging.
-    const needsReindex =
-      changeSet.unknown ||
-      changeSet.committedPaths.some((p) => !isDenied(p)) ||
-      !marker ||
-      marker.dirty_digest !== dirtyDigest;
-
-    if (!needsReindex) {
-      const headSha = currentHeadSha(mainRoot);
-      writeMarker(mainRoot, {
-        head_sha: headSha || (marker && marker.head_sha) || '',
-        dirty_digest: dirtyDigest,
-        updated_at: new Date().toISOString(),
-      });
-      appendLog(mainRoot, logLine(via, 'skipped-no-change', Date.now() - startedAt));
-      console.log('codegraph reindex: skipped (no indexed path changed)');
-      return;
-    }
-
-    const res = runReindex(mainRoot);
-    if (res.error || res.status !== 0) {
-      appendLog(mainRoot, logLine(via, 'failed-' + reindexFailureReason(res), Date.now() - startedAt));
-      console.log('codegraph reindex: failed (' + reindexFailureReason(res) + ')');
-      return;
-    }
-
-    const headSha = currentHeadSha(mainRoot);
-    // dirtyDigest was taken BEFORE the re-index started, deliberately: an
-    // edit made while the re-index was in flight is not folded into the
-    // recorded state, so the next invocation still refreshes for it.
-    writeMarker(mainRoot, {
-      head_sha: headSha || '',
-      dirty_digest: dirtyDigest,
-      updated_at: new Date().toISOString(),
-    });
-    appendLog(mainRoot, logLine(via, 'reindexed', Date.now() - startedAt));
-    console.log('codegraph reindex: reindexed ' + mainRoot);
+    runMainDecision(mainRoot, via, startedAt);
+    reindexLinkedRepos(mainRoot, via);
   } catch (e) {
     try {
       process.stderr.write('codegraph reindex: unexpected error: ' + (e && e.message ? e.message : String(e)) + '\n');
@@ -320,8 +427,10 @@ function route({ args }) {
   }
 }
 
-function logLine(via, decision, elapsedMs) {
-  return new Date().toISOString() + ' via=' + via + ' decision=' + decision + ' elapsed_ms=' + elapsedMs;
+function logLine(via, decision, elapsedMs, repoName) {
+  let line = new Date().toISOString() + ' via=' + via + ' decision=' + decision + ' elapsed_ms=' + elapsedMs;
+  if (repoName) line += ' repo=' + repoName;
+  return line;
 }
 
 module.exports = { route };
