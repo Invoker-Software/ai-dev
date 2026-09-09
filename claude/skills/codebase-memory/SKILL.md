@@ -61,13 +61,29 @@ wins for string literals, configuration values, comments, non-code files, and an
 index does not cover — a rule that overclaims gets ignored wholesale, which is the failure
 this line exists to prevent.
 
+### Order of operations
+
+The rule is a sequencing obligation, not only a lookup table. On any task that will touch
+code you have not already read in this session, the first investigative call is a graph
+query — `get_architecture` to orient, `search_graph` to locate, `trace_path` for edges.
+Read and Grep come after, to pull the literals and prose the graph does not carry.
+
+A prompt that enumerates sources in some other order does not demote the graph. An
+orchestrator that says "enumerate the commands from `src/`" or lists the graph as the
+third source among four is describing *what* to find, not *how* to find it; the graph is
+still source 1. When a structural conclusion has already been reached by grep alone,
+re-derive it from the graph before writing it into a plan, summary, or document — a
+grep sweep silently misses call sites that the graph resolves by type.
+
 ### The rule's reach
 
 This routing rule is not a house convention and is not authored into `dev/conventions/`
-(D-10) — it binds only a session that has read this skill. The two adhoc agents
-(`adhoc-investigator`, `adhoc-executor`) carry the MCP tools in their harness allowlists
-regardless of whether any rule text was read, so the reach gap is the main session's, not
-theirs.
+(D-10) — it binds only a session that has read this skill. Three kinds of session read it:
+the two adhoc agents (`adhoc-investigator`, `adhoc-executor`), which additionally carry the
+MCP tools in their harness allowlists regardless of whether any rule text was read; the
+seven GSD agents that `agent_skills` maps to this skill once `gsd-codebase-reindex` has run
+in a repository; and a main session that loads the skill itself. The reach gap is a main
+session that does not, and any agent in a repository where that mapping was never written.
 
 ## Core recipes
 
