@@ -150,17 +150,31 @@ other.
 
 ## Step 6 — Map GSD's own agents to the graph
 
-Without this step, `gsd-executor`, `gsd-planner`, `gsd-debugger`,
-`gsd-phase-researcher`, `gsd-code-reviewer`, `gsd-code-fixer`, and
-`gsd-verifier` carry no `mcp__codebase-memory-mcp__*` in their tool
-allowlists and read nothing that points them at the CLI — every step above
-keeps the graph indexed and current while every GSD subagent that could
-read it stays blind to its existence.
+Without this step, every GSD agent that carries the `agent_skills`
+self-load contract line in its own definition carries no
+`mcp__codebase-memory-mcp__*` in its tool allowlist and reads nothing that
+points it at the CLI — every step above keeps the graph indexed and current
+while every such subagent stays blind to its existence.
+
+The eligible set is resolved at run time, not enumerated here: every agent
+definition in the runtime's own agents directory
+(`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents`) whose body carries the
+`agent_skills` self-load contract line, with the slug being the filename
+minus its `.md` extension. On a current gsd-core install this resolves to
+22 agents. Discover it with:
+
+```bash
+grep -lF '**agent_skills:** self-load per @~/.claude/gsd-core/references/agent-skills-bootstrap.md' \
+    "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/agents/gsd-*.md \
+  | xargs -n1 basename \
+  | sed 's/\.md$//' \
+  | sort
+```
 
 Read `<root>/.planning/config.json` (treat it as `{}` if the file is
-absent) and, for each of those seven slugs, ensure its `agent_skills` array
-contains `global:codebase-memory`: append it if the slug already has an
-array and lacks the entry, create a one-entry array if the slug has no
+absent) and, for each slug in that resolved set, ensure its `agent_skills`
+array contains `global:codebase-memory`: append it if the slug already has
+an array and lacks the entry, create a one-entry array if the slug has no
 entry yet, and change nothing if the entry is already present. Never
 replace an existing array wholesale — a slug already mapped to some other
 skill keeps that entry — and never touch any other top-level config key or
@@ -168,9 +182,9 @@ any other agent's `agent_skills` entry, including `gsd-pattern-mapper`'s if
 one exists. Write the file only if the computed result differs from what
 was read.
 
-`gsd-pattern-mapper` is deliberately excluded from the seven: it carries no
-`agent_skills` self-load contract in its own definition, so a mapping here
-would never be read.
+`gsd-pattern-mapper` is deliberately excluded: it carries no `agent_skills`
+self-load contract in its own definition, so the discovery rule above
+excludes it by construction, and a mapping here would never be read.
 
 The value is `global:codebase-memory`, not a repo-relative path, because
 that prefix resolves through each developer's own config directory, so the
@@ -180,14 +194,19 @@ that developer installed into.
 Verify with:
 
 ```bash
-for slug in gsd-executor gsd-planner gsd-debugger gsd-phase-researcher \
-    gsd-code-reviewer gsd-code-fixer gsd-verifier; do
+slugs=$(grep -lF '**agent_skills:** self-load per @~/.claude/gsd-core/references/agent-skills-bootstrap.md' \
+    "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/agents/gsd-*.md \
+  | xargs -n1 basename \
+  | sed 's/\.md$//' \
+  | sort)
+echo "resolved $(echo "$slugs" | wc -l) agents"
+for slug in $slugs; do
   node "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/gsd-core/bin/gsd-tools.cjs" \
     query agent-skills "$slug"
 done
 ```
 
-Each of the seven must print an `<agent_skills>` block. A
+Each resolved slug must print an `<agent_skills>` block. A
 `[agent-skills] WARNING:` on stderr for any of them means it did not
 resolve — most likely this developer has not run the ai-dev installer into
 the config directory this runtime is using.
