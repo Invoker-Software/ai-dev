@@ -9,6 +9,8 @@ const childProcess = require('node:child_process');
 
 const PLACEHOLDER = '@@CLAUDE_CONFIG_DIR@@';
 const CODEBASE_MEMORY_VERSION_FLOOR = '0.10.8';
+const GSD_AGENT_PREFIX = 'gsd-';
+const AGENT_TOOLS_GRANT = 'mcp__codebase-memory-mcp__*';
 
 /**
  * @typedef {{ abs: string, rel: string }} Artifact
@@ -27,7 +29,7 @@ const CODEBASE_MEMORY_VERSION_FLOOR = '0.10.8';
  */
 
 /**
- * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, mcpOutcome: McpOutcome }} DeployResult
+ * @typedef {{ cfgDirAbs: string, counts: { written: number, replaced: number, unchanged: number }, agentGrantCounts: { granted: number, unchanged: number, skipped: number }, mcpOutcome: McpOutcome }} DeployResult
  */
 
 /**
@@ -305,15 +307,257 @@ function deployFile(src, dest, cfgDirAbs, dryRun) {
 }
 
 /**
+ * @typedef {{ status: 'already-present' } | { status: 'refused', reason: string } | { status: 'granted', text: string }} GrantResult
+ */
+
+/**
+ * Append `grant` to one agent definition's `tools:` frontmatter, or report
+ * why it was refused. Deliberate port of gsd-core's own `appendAgentTools`
+ * contract (`install-profiles.cjs`'s `appendAgentTools`, single-grant case)
+ * so the two paths converge on identical bytes for the same input.
+ *
+ * Requires a first line of exactly `---` and a closing `---` line; absent
+ * either, refuses. Finds `tools:` only within that frontmatter range. Splits
+ * a trailing ` #comment` off an inline value before parsing and re-attaches
+ * it after appending. Refuses outright when the trimmed inline value begins
+ * with `"`, `'` or `[` — a quoted scalar or a flow sequence occupying the
+ * whole YAML node, which appending in place would corrupt. For an inline
+ * value, splits on commas and trims to compare against `grant`. For an empty
+ * inline value, walks forward while each line matches an indented list item,
+ * comparing each item to `grant` after stripping one matching pair of
+ * surrounding quotes — this quote-stripping is what makes the step
+ * idempotent against the block-list bytes gsd-core itself writes.
+ * @param {string} content
+ * @param {string} grant
+ * @returns {GrantResult}
+ */
+function appendAgentToolsGrant(content, grant) {
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(eol);
+  if (lines[0] !== '---') {
+    return { status: 'refused', reason: 'no frontmatter' };
+  }
+  const frontmatterEnd = lines.indexOf('---', 1);
+  if (frontmatterEnd === -1) {
+    return { status: 'refused', reason: 'unterminated frontmatter' };
+  }
+  const toolsIndex = lines.findIndex(
+    (line, index) => index < frontmatterEnd && /^tools:[ \t]*(.*)$/.test(line)
+  );
+  if (toolsIndex === -1) {
+    return { status: 'refused', reason: 'no tools: key' };
+  }
+  const toolsMatch = /^tools:[ \t]*(.*)$/.exec(lines[toolsIndex]);
+  if (!toolsMatch) {
+    return { status: 'refused', reason: 'no tools: key' };
+  }
+
+  const commentIndex = toolsMatch[1].search(/[ \t]#/);
+  let inlineValue = commentIndex === -1 ? toolsMatch[1] : toolsMatch[1].slice(0, commentIndex);
+  let inlineComment = commentIndex === -1 ? '' : toolsMatch[1].slice(commentIndex);
+  if (inlineValue.trim().startsWith('#')) {
+    inlineComment = toolsMatch[1];
+    inlineValue = '';
+  }
+
+  if (/^["'[]/.test(inlineValue.trim())) {
+    return { status: 'refused', reason: 'quoted or flow-sequence tools value' };
+  }
+
+  /** @type {string[]} */
+  const existing = [];
+  let insertAt = toolsIndex + 1;
+  if (inlineValue.trim()) {
+    existing.push(...inlineValue.split(',').map((s) => s.trim()).filter(Boolean));
+  } else {
+    while (insertAt < frontmatterEnd) {
+      const item = /^([ \t]+)-[ \t]*(\S.*)$/.exec(lines[insertAt]);
+      if (!item) break;
+      let value = item[2].trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      existing.push(value);
+      insertAt += 1;
+    }
+  }
+
+  if (existing.includes(grant)) {
+    return { status: 'already-present' };
+  }
+
+  if (inlineValue.trim()) {
+    lines[toolsIndex] = `tools: ${inlineValue.trimEnd()}, ${grant}${inlineComment}`;
+  } else {
+    const firstItem = /^([ \t]+)-/.exec(lines[toolsIndex + 1]);
+    const indent = firstItem ? firstItem[1] : '  ';
+    lines.splice(insertAt, 0, `${indent}- ${JSON.stringify(grant)}`);
+  }
+  return { status: 'granted', text: lines.join(eol) };
+}
+
+/**
+ * @typedef {{ granted: number, unchanged: number, skipped: number }} AgentGrantCounts
+ */
+
+/**
+ * Grant `AGENT_TOOLS_GRANT` to every GSD agent definition directly inside
+ * `<cfgDirAbs>/agents` (D-01a): files whose name starts with
+ * `GSD_AGENT_PREFIX` and ends with `.md`, sorted. The filename-prefix filter
+ * is what keeps this stage off the artifacts `deployFile` owns — dropping it
+ * would make the two stages rewrite each other on alternating runs
+ * (T-r3z-01). Reports per file in the same vocabulary `deployFile` and
+ * `discoverArtifacts` use, then one roll-up line naming the counts and the
+ * config directory. Writes only on a successful append and only when not
+ * dry-running. When `agents/` is absent, prints one skipped line and returns
+ * zeros — a config directory where gsd-core was never installed is a normal
+ * case, not a failure.
+ * @param {string} cfgDirAbs
+ * @param {boolean} [dryRun]
+ * @returns {AgentGrantCounts}
+ */
+function grantAgentTools(cfgDirAbs, dryRun) {
+  const agentsDir = path.join(cfgDirAbs, 'agents');
+  const counts = { granted: 0, unchanged: 0, skipped: 0 };
+
+  if (!fs.existsSync(agentsDir)) {
+    console.log(`skipped (no agents directory): ${agentsDir}`);
+    return counts;
+  }
+
+  const names = fs
+    .readdirSync(agentsDir, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() && entry.name.startsWith(GSD_AGENT_PREFIX) && entry.name.endsWith('.md')
+    )
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const name of names) {
+    const dest = path.join(agentsDir, name);
+    const content = fs.readFileSync(dest, 'utf8');
+    const result = appendAgentToolsGrant(content, AGENT_TOOLS_GRANT);
+
+    if (result.status === 'already-present') {
+      console.log(`unchanged: ${dest}`);
+      counts.unchanged += 1;
+    } else if (result.status === 'refused') {
+      console.log(`skipped (${result.reason}): ${dest}`);
+      counts.skipped += 1;
+    } else {
+      console.log(`${dryRun ? 'would replace' : 'replacing (content differs)'}: ${dest}`);
+      if (!dryRun) {
+        fs.writeFileSync(dest, result.text);
+      }
+      counts.granted += 1;
+    }
+  }
+
+  console.log(
+    `${counts.granted} granted, ${counts.unchanged} unchanged, ${counts.skipped} skipped (agent tool grants) in ${agentsDir}`
+  );
+  return counts;
+}
+
+/**
+ * Resolve the home-level GSD defaults file this installer merges its
+ * `agent_tools` grant into (D-01b). `AI_DEV_GSD_DEFAULTS`, when set and
+ * non-empty, is the test-injection seam — mirrors the `AI_DEV_CLAUDE_BIN`
+ * precedent — and is the only reason no test in this suite ever reaches the
+ * developer's real `~/.gsd/defaults.json`.
+ * @returns {string}
+ */
+function resolveGsdDefaultsPath() {
+  const override = process.env.AI_DEV_GSD_DEFAULTS;
+  if (override) return override;
+  return path.join(os.homedir(), '.gsd', 'defaults.json');
+}
+
+/**
+ * Merge `AGENT_TOOLS_GRANT` into the wildcard `agent_tools` selector of the
+ * home-level GSD defaults file at `defaultsPath` (D-01b). Merge-only, never
+ * overwrite: every unrelated top-level key and every pre-existing
+ * `agent_tools` selector is spread through untouched, and the wildcard
+ * selector's own pre-existing entries survive alongside the new grant. A
+ * missing file starts from an empty object. A file that cannot be parsed
+ * throws, naming the path, leaving it untouched; likewise if `agent_tools`
+ * is present and is not a plain object, or the wildcard selector is present
+ * and is not an array. Presence decides: if the grant is already in the
+ * wildcard array, nothing is written at all — the developer's own JSON
+ * formatting is never reflowed. Under `dryRun`, creates nothing.
+ * @param {string} defaultsPath
+ * @param {boolean} [dryRun]
+ * @returns {'created' | 'merged' | 'unchanged'}
+ */
+function writeGsdDefaultsGrant(defaultsPath, dryRun) {
+  const existed = fs.existsSync(defaultsPath);
+  /** @type {any} */
+  let parsed = {};
+
+  if (existed) {
+    let raw;
+    try {
+      raw = fs.readFileSync(defaultsPath, 'utf8');
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new Error(`Could not parse ${defaultsPath} (left untouched): ${errMessage(err)}`);
+    }
+  }
+
+  if (
+    parsed.agent_tools !== undefined &&
+    (typeof parsed.agent_tools !== 'object' ||
+      parsed.agent_tools === null ||
+      Array.isArray(parsed.agent_tools))
+  ) {
+    throw new Error(`${defaultsPath}: agent_tools is not a plain object (left untouched)`);
+  }
+  const agentTools = parsed.agent_tools || {};
+
+  if (agentTools['*'] !== undefined && !Array.isArray(agentTools['*'])) {
+    throw new Error(`${defaultsPath}: agent_tools['*'] is not an array (left untouched)`);
+  }
+  const wildcard = agentTools['*'] || [];
+
+  if (wildcard.includes(AGENT_TOOLS_GRANT)) {
+    console.log(`unchanged: ${defaultsPath}`);
+    return 'unchanged';
+  }
+
+  const merged = {
+    ...parsed,
+    agent_tools: {
+      ...agentTools,
+      '*': [...wildcard, AGENT_TOOLS_GRANT],
+    },
+  };
+
+  console.log(
+    `${dryRun ? (existed ? 'would replace' : 'would write') : existed ? 'replacing (content differs)' : 'writing'}: ${defaultsPath}`
+  );
+  if (!dryRun) {
+    fs.mkdirSync(path.dirname(defaultsPath), { recursive: true });
+    fs.writeFileSync(defaultsPath, JSON.stringify(merged, null, 2) + '\n');
+  }
+  return existed ? 'merged' : 'created';
+}
+
+/**
  * Register codebase-memory-mcp (removing any leftover vexp registration
- * best-effort) into one target config directory, then deploy every
- * discovered artifact, then write the manifest — in that order (D-17). Each
- * stage's error is tagged with `err.stage` (`'deploy' | 'mcp' | 'manifest'`)
- * so a caller looping over several targets can report exactly where a
- * mid-run failure stopped. Consequence of this ordering: a target that
- * fails during file deploy now leaves a registration behind and no
- * manifest — the manifest stays the sole record that a deploy completed,
- * never a statement that MCP registration alone succeeded.
+ * best-effort) into one target config directory, deploy every discovered
+ * artifact, grant GSD agent definitions in that same directory graph access
+ * (D-01a), then write the manifest — in that order (D-17). Each stage's
+ * error is tagged with `err.stage`
+ * (`'deploy' | 'mcp' | 'manifest' | 'agent-grants'`) so a caller looping
+ * over several targets can report exactly where a mid-run failure stopped.
+ * Consequence of this ordering: a target that fails during file deploy now
+ * leaves a registration behind and no manifest — the manifest stays the sole
+ * record that a deploy completed, never a statement that MCP registration
+ * alone succeeded.
  * @param {string} cfgDir
  * @param {Artifact[]} artifacts
  * @param {string} claudeBin
@@ -348,13 +592,20 @@ function deployTarget(cfgDir, artifacts, claudeBin, shaInfo, repoSlug, dryRun) {
     throw tagStage(err, 'deploy');
   }
 
+  let agentGrantCounts;
+  try {
+    agentGrantCounts = grantAgentTools(cfgDirAbs, dryRun);
+  } catch (err) {
+    throw tagStage(err, 'agent-grants');
+  }
+
   try {
     writeManifest(cfgDirAbs, shaInfo, repoSlug, relPaths, dryRun);
   } catch (err) {
     throw tagStage(err, 'manifest');
   }
 
-  return { cfgDirAbs, counts, mcpOutcome };
+  return { cfgDirAbs, counts, agentGrantCounts, mcpOutcome };
 }
 
 /**
@@ -505,7 +756,7 @@ function errMessage(err) {
  * Tag a caught error with which stage of a target's deploy it occurred in,
  * then return it for re-throwing.
  * @param {unknown} err
- * @param {'deploy' | 'mcp' | 'manifest'} stage
+ * @param {'deploy' | 'mcp' | 'manifest' | 'agent-grants'} stage
  * @returns {Error & { stage?: string }}
  */
 function tagStage(err, stage) {
@@ -690,6 +941,15 @@ function printStalenessLine(pkgName, sha, staleness, repoSlug) {
 
 /**
  * Entry point.
+ *
+ * D-02: this is the installer's first write outside a config directory it
+ * was given — `writeGsdDefaultsGrant`, below, touches the home-level GSD
+ * defaults file. It exists because a later gsd-core install overwrites the
+ * agent definitions `grantAgentTools` just edited inside each target config
+ * directory (D-01a alone is lost on the next gsd-core update); merging the
+ * grant into `~/.gsd/defaults.json` (D-01b) is what makes gsd-core
+ * re-derive it afterward. The developer accepted this widened contract
+ * deliberately (see `install/README.md`).
  * @returns {Promise<void>}
  */
 async function main() {
@@ -704,6 +964,9 @@ async function main() {
         "  codebase-memory-mcp MCP server there via 'claude mcp add'.\n" +
         '  Example (two profiles): npx github:Invoker-Software/ai-dev <path/to/first-config-dir> <path/to/second-config-dir>\n' +
         '  This installer indexes nothing: run the codebase-memory-setup skill once per repository you want indexed.\n' +
+        '  Also writes/merges an agent_tools grant into ~/.gsd/defaults.json (or\n' +
+        '  $AI_DEV_GSD_DEFAULTS), the one write this installer makes outside the\n' +
+        '  config directories named above — see install/README.md.\n' +
         '  --dry-run prints the full plan and writes nothing.\n'
     );
     process.exit(1);
@@ -763,6 +1026,10 @@ async function main() {
     }
   }
 
+  const gsdDefaultsPath = resolveGsdDefaultsPath();
+  console.log(`--- global defaults: ${gsdDefaultsPath} ---`);
+  writeGsdDefaultsGrant(gsdDefaultsPath, dryRun);
+
   console.log(
     formatSummary({
       ...totals,
@@ -786,6 +1053,10 @@ module.exports = {
   discoverArtifacts,
   substitute,
   deployFile,
+  appendAgentToolsGrant,
+  grantAgentTools,
+  resolveGsdDefaultsPath,
+  writeGsdDefaultsGrant,
   deployTarget,
   registerCodebaseMemoryIfNeeded,
   findOwnInstalledSha,

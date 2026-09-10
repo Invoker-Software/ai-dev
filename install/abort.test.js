@@ -44,6 +44,16 @@ async function runMain(argv) {
   const origStderrWrite = process.stderr.write.bind(process.stderr);
   const origConsoleLog = console.log;
   const origFetch = globalThis.fetch;
+  const origGsdDefaults = process.env.AI_DEV_GSD_DEFAULTS;
+
+  // Two tests in this file (below) drive main() to successful completion,
+  // which reaches the home-level defaults write (D-01b). Without this
+  // override every `npm test` run would write the developer's real
+  // ~/.gsd/defaults.json — redirect it into a throwaway temp path instead.
+  process.env.AI_DEV_GSD_DEFAULTS = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'ai-dev-abort-test-gsd-')),
+    'defaults.json'
+  );
 
   process.argv = ['node', 'cli.js', ...argv];
   process.stderr.write = /** @type {typeof process.stderr.write} */ (
@@ -82,6 +92,8 @@ async function runMain(argv) {
     process.stderr.write = origStderrWrite;
     console.log = origConsoleLog;
     globalThis.fetch = origFetch;
+    if (origGsdDefaults === undefined) delete process.env.AI_DEV_GSD_DEFAULTS;
+    else process.env.AI_DEV_GSD_DEFAULTS = origGsdDefaults;
   }
 
   return { error, stderr: stderrChunks.join('\n'), stdout: stdoutChunks.join('\n') };
