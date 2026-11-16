@@ -1,0 +1,6 @@
+[info] Passed: Total 0, Failed 0, Errors 0, Passed 0
+[info] + a full-row rewrite in a different element order is accepted with no error 116ms
+[info] + order survives a plain write-and-read cycle unchanged 23ms
+[info] + a longer array round-trips positionally, so position is the only precedence signal 15ms
+[info] + an empty array is stored and read back empty, so terms.head is not total 12ms
+[info] Passed: Total 4, Failed 0, Errors 0, Passed 4

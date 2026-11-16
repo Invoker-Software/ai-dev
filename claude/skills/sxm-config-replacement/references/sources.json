@@ -1,0 +1,20 @@
+[
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "script/src/main/scala/com/siriusxm/commerce/quote/script/ConfigTableWriter.scala",
+    "sha256": "a7c4e925dfff67a6df25937eeefd786066853019b0388c65781463e41f4018b8"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "script/src/test/scala/com/siriusxm/commerce/quote/script/ConfigTableWriterSuite.scala",
+    "sha256": "51ea9d3c10033e5ca0d107928af1442e80f1792c4e4e4c3498346bc47a3522f1"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "script/src/test/scala/com/siriusxm/commerce/quote/script/RefreshCliArgsSuite.scala",
+    "sha256": "9a0ece0f802ccb24dab16feaa6b3cf3cb10c2e5bf8826dde1be7bc2d1643e74f"
+  }
+]

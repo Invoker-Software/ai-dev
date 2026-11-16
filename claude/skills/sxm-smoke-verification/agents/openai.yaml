@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM smoke verification"
+  short_description: "Prepare regional smoke checks and revision evidence"

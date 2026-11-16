@@ -1,0 +1,32 @@
+[
+  {
+    "repository": "offer-service",
+    "ref": "40fb548765c48b14878d339d4af75d779e776ce8",
+    "path": "infrastructure/lib/stacks/stripe-sync-stack.ts",
+    "sha256": "e73418f8a1e766e7205b3de38f543cbc43de79f5e1f42f21939bd0344532e7f7"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lib/stacks/kinesis-consumers-stack.ts",
+    "sha256": "8f11c5788633b4c3d3538358e642bdd3295fefe04396af9abf4c3115a141b0a4"
+  },
+  {
+    "repository": "eligibility-service",
+    "ref": "19e3ad9bf3f3c0c6ff32a4dc458797d219607494",
+    "path": "infrastructure/lib/stacks/link-account-sqs-stack.ts",
+    "sha256": "a87848c7ebe9a9a907119537c84f8d74cfe68c5b9e0256369a813396abb7f5d8"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/canada-score-sqs-stack.ts",
+    "sha256": "390399025b5679e3346e0494259a4a8b2a1794c12b5c0fe2b204be5afa32ad8a"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/canada-score-updater-stack.ts",
+    "sha256": "5dd0a766022a81a64332b5ca5ef949865a4f72a80d1c77f89aac5ab833d08cdf"
+  }
+]

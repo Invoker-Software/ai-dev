@@ -1,0 +1,44 @@
+[
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": ".claude/skills/smithy-docs-navigator/SKILL.md",
+    "sha256": "f50caf17278a92cb6d1e5f1f2491bc92657e759d6990715048687474993d60b8"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": ".claude/skills/smithy-selectors/SKILL.md",
+    "sha256": "eb49252f453af486641bd878ab71f4641119f4a4c182b4427341f4e33753bd1a"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": "mill-wrapper.sh",
+    "sha256": "10307ea482c18c9b32c4a0320eb846c3f944eee5a49a85f3982555a1dbe52e46"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": "build.mill",
+    "sha256": "6bf11d526f89f056b584336223426aa4cbba7def0e69abff0ed2f1bdc790a359"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": ".github/workflows/main.yml",
+    "sha256": "7e9d8bd6727e62b28fdc5df3940826fbf76211acacbb96f0c6ca517bdf35797c"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": "CLAUDE.md",
+    "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49"
+  },
+  {
+    "repository": "api-registry",
+    "ref": "65722ff3c64bfa2cb1f988db9316e5311531c04a",
+    "path": "AGENTS.md",
+    "sha256": "00acb9a64970a6f8a638caa8f1cfcb6ac3a0bff7ee10573475609c36bfaf3e28"
+  }
+]

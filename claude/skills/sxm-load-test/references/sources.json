@@ -1,0 +1,38 @@
+[
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "load-tests/src/main/scala/com/siriusxm/commerce/e2e/gatling/SimulationBase.scala",
+    "sha256": "e1186c235c8cc7c2d0703bf1c617a374faa1353780c9d3c38f99047e62c64e5e"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "load-tests/src/main/scala/com/siriusxm/commerce/e2e/gatling/GiftCardServiceSimulation.scala",
+    "sha256": "3abf88fd491352b6ab4f1e8bf1d770dd8e02a9a44d25ee740d2c92116fd985eb"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "load-tests/src/main/scala/com/siriusxm/commerce/e2e/config/LoadTestConfig.scala",
+    "sha256": "e21cc2b668f6a01727a8fcbe9c42c1e79cd0337dab4e578266c010310b621022"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "infrastructure/lib/LoadTestingStack.ts",
+    "sha256": "1d96049985d1ae18960f254a3793ed2a7b820ec4bcb4c2ae7fe5cf66b4f064aa"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": ".github/workflows/run_load_ecs.yml",
+    "sha256": "f04ac9fa3474917feda5a223ad35659fda561d2e30b8cfd93054b54eef95ea21"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "common/src/main/scala/com/siriusxm/commerce/e2e/common/Scenario.scala",
+    "sha256": "93c87a2e17a57c94759a9b554e001e5542dd628b4a22f3ccac2541f85c810173"
+  }
+]

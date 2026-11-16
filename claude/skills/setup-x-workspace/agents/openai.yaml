@@ -1,0 +1,3 @@
+interface:
+  display_name: "Set up x-* workspace"
+  short_description: "Create a local workspace linked to a code repository"

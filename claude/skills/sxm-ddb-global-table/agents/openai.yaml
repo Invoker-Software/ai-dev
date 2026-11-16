@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM DynamoDB global tables"
+  short_description: "Add replicated tables using the local CDK conventions"

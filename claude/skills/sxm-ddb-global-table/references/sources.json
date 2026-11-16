@@ -1,0 +1,20 @@
+[
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/dynamodb-tables-stack.ts",
+    "sha256": "1cbed3bcb23312bee819a2eba85083ed59b39cc60fb8edcde9918c599b19c572"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stages/deployment-stage.ts",
+    "sha256": "13aa13153306e58141d2207cd81d817f481fc09c39663da4044978e7ac4d18ad"
+  },
+  {
+    "repository": "offer-service",
+    "ref": "40fb548765c48b14878d339d4af75d779e776ce8",
+    "path": "infrastructure/lib/stacks/dynamodb-stack.ts",
+    "sha256": "d952b8f35f12bfd94ee607bd656a2e7408244ab4674ee9753f4057199e102e3d"
+  }
+]

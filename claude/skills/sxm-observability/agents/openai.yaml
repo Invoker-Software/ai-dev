@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM observability"
+  short_description: "Connect service telemetry, monitors, and alert routing"

@@ -1,0 +1,6 @@
+[info] Passed: Total 0, Failed 0, Errors 0, Passed 0
+[info] + a positional terms array encodes to attribute type L, in written order 34ms
+[info] + round-trip preserves element order, so terms.head is the plan's own term 34ms
+[info] + an absent terms array decodes to None, so terms.head has no total reading 30ms
+[info] + an empty terms array round-trips as empty, so terms.head would throw 30ms
+[info] Passed: Total 4, Failed 0, Errors 0, Passed 4

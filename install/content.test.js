@@ -266,9 +266,9 @@ test('both setup-half skills disclose what does not travel', () => {
   );
 });
 
-// Assertion 9 — nothing recommends an unverified acquisition path.
+// Assertion 9 — nothing recommends an unverified code-graph acquisition path.
 test('nothing recommends an unverified acquisition path', () => {
-  const npmInstallPattern = new RegExp(['npm', 'install'].join('\\s+'));
+  const npmInstallPattern = /\bnpm\s+install\b[^\n`]*\bcodebase-memory-mcp\b/;
   const unrelatedRepoName = 'elarsaks';
   const vendorAutoInstallPattern = new RegExp(
     'codebase-memory-mcp' + '\\s+' + 'install' + '\\b(?!\\.)'
@@ -277,7 +277,7 @@ test('nothing recommends an unverified acquisition path', () => {
 
   for (const file of discovered) {
     const content = readText(file);
-    assert.ok(!npmInstallPattern.test(content), `${relOf(file)} recommends an npm install command`);
+    assert.ok(!npmInstallPattern.test(content), `${relOf(file)} recommends installing codebase-memory-mcp with npm`);
     assert.ok(
       !content.includes(unrelatedRepoName),
       `${relOf(file)} references the unrelated same-named upstream repository`

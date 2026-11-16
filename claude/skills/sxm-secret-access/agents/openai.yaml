@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM secret access"
+  short_description: "Configure regional secret references and KMS permissions"

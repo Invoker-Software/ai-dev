@@ -1,0 +1,38 @@
+[
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/s3-stack.ts",
+    "sha256": "8df11b4394281e65437a45e87cb1390bbe6826ee58e2074adbc954c60bb2864a"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lib/stacks/s3-bucket-stack.ts",
+    "sha256": "54f01529479fdc5152c1cb938afebad40b42c30329bbbfc8f17ca9e5d101ed74"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lib/stacks/s3-replication-stack.ts",
+    "sha256": "b9ed286deabbc427ffcdc5eddb983d270b418f9bebc5957644065e825af0d4e5"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lib/stages/s3-replication-stage.ts",
+    "sha256": "be50f489060506a2395cce5eac3cd3b0782709f6bb34a8769c663ce8e85d6ba1"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lib/utils/replication-roles.ts",
+    "sha256": "88f697aafdb0944f45964b689d65fa2cc4a00bb1f1c0119c9d02f52854ed901e"
+  },
+  {
+    "repository": "redemption-service",
+    "ref": "dfed57e12013b10d8954b69cce0fd295cd47f4b6",
+    "path": "infrastructure/lambda/push-replication-configuration.ts",
+    "sha256": "00cee1a28b6b2b757d6b66dd263bae0007caf67d7a9c7bfd5d57e0653139b622"
+  }
+]

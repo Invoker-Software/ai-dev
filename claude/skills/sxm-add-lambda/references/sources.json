@@ -1,0 +1,32 @@
+[
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/canada-score-orchestrator-stack.ts",
+    "sha256": "1f3be7d99e8b924d000d601676e264159c88fdf7cd220645ded26c184f99b256"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/canada-score-updater-stack.ts",
+    "sha256": "5dd0a766022a81a64332b5ca5ef949865a4f72a80d1c77f89aac5ab833d08cdf"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stages/deployment-stage.ts",
+    "sha256": "8664e42681295391709a95fd386fe42deab824e0c42c69ec0a63fd3496d4218b"
+  },
+  {
+    "repository": "eligibility-service",
+    "ref": "19e3ad9bf3f3c0c6ff32a4dc458797d219607494",
+    "path": "infrastructure/lib/stacks/link-account-worker-stack.ts",
+    "sha256": "56e21e8c337528d7f2f021c880a779d0193cd3d3b4aad5753fa2f0bd9857abbb"
+  },
+  {
+    "repository": "offer-service",
+    "ref": "40fb548765c48b14878d339d4af75d779e776ce8",
+    "path": "infrastructure/lib/stacks/change-processing-stack.ts",
+    "sha256": "ad7fae39ac0a2b1858f65d2e1b5876205d716d12aba2d04de9162f0b63f543d3"
+  }
+]

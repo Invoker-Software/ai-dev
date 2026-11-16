@@ -1,0 +1,32 @@
+[
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/alarms-stack.ts",
+    "sha256": "de22efd5add806a9c07d73998abea0ad91d60c3fd1cb99f9537c69078c3709b3"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/observability-stack.ts",
+    "sha256": "cc785ff17a57afaca62cbe64054feeb0ee32ca5c42630bee2533ce09a1e2d7e2"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/config/code-deploy-config.ts",
+    "sha256": "e0371d4459243b080cd27f5b5378696b7c9c48711c458fa1c84a98188db50eec"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stages/deployment-stage.ts",
+    "sha256": "8664e42681295391709a95fd386fe42deab824e0c42c69ec0a63fd3496d4218b"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "infrastructure/lib/stacks/alarms-stack.ts",
+    "sha256": "d5d541663bfee2877fc4db80512c4ef49a3dd405c1c3c9fd3c7598622b53ad69"
+  }
+]

@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM service deployment"
+  short_description: "Prepare service stages, prerequisites, and release wiring"

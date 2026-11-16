@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM event consumers"
+  short_description: "Wire stream and queue consumers with recovery behavior"

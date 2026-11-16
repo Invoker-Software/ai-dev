@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM configuration replacement"
+  short_description: "Prepare scoped dry runs and protected configuration writes"

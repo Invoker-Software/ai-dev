@@ -1,0 +1,32 @@
+[
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": ".github/workflows/smoke-test.yml",
+    "sha256": "bd46bf78f5e79b22e1f2722276d7615e5733185ec96d14b67a46e0e2c78752c6"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "smoke/src/test/scala/com/siriusxm/commerce/geo/smoke/BaseSmokeSpec.scala",
+    "sha256": "5c13876edb5e8429c317665d49078640d2a3956ff7e7fd82885166106f2e10ad"
+  },
+  {
+    "repository": "geo-service",
+    "ref": "14aa218c3e472e1073c899dd76f24c2eb67335e0",
+    "path": "smoke/src/test/scala/com/siriusxm/commerce/geo/smoke/SmokeTestConfig.scala",
+    "sha256": "9c4c24fdff72a441b98cc0496c52f2e717e3a55ce58edade8f9e637888b9b1c4"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": ".github/workflows/main.yml",
+    "sha256": "6a519d5e77c4282b555897371e20c2d6e43777aa30886a281e1f1e8eb75d52b4"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "smoke/src/test/scala/com/siriusxm/commerce/quote/.gitkeep",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

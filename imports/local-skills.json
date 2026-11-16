@@ -1,0 +1,497 @@
+{
+  "date": "2026-11-16",
+  "scope": "Custom local skills without a known public upstream, plus global preferences. Private enterprise repository skills are included. Standalone custom skill public availability is inferred from local provenance, not established by searching skill contents online.",
+  "excluded": [
+    "Public GSD distribution skills",
+    "Codex system skills",
+    "Official vendor marketplace and synchronized vendor skills",
+    "Public VirtusLab Cellar skills",
+    "Temporary, npm cache, and backup copies"
+  ],
+  "selection": "Preserve existing ai-dev packages; otherwise prefer the primary Claude profile, then alternate Claude profiles, Codex custom skills, work repositories, and the private enterprise marketplace. Duplicate names use the first source; other source paths are recorded, not deployed as duplicate commands.",
+  "skills": [
+    {
+      "name": "adhoc-platform-task",
+      "disposition": "existing-preserved",
+      "source": "~/iswi/ai-dev/claude/skills/adhoc-platform-task",
+      "other_local_sources": [
+        "~/.claude/skills/adhoc-platform-task",
+        "~/.claude-me/skills/adhoc-platform-task",
+        "~/.claude-byse/skills/adhoc-platform-task"
+      ],
+      "destination": "claude/skills/adhoc-platform-task",
+      "files": {
+        "SKILL.md": "e39ca049ca24645b00f6b2471cacd5f6ed938fc83f05057475efa564de74165e",
+        "assets/adhoc_context_template.txt": "9553246ce2c1e04dd3c1ef9da7c324c2ed65aedb3bb86064a5b42b8f5871b3c0"
+      }
+    },
+    {
+      "name": "api-registry",
+      "disposition": "imported",
+      "source": "~/siriusxm/api-registry/.claude/skills/api-registry",
+      "other_local_sources": [
+        "~/siriusxm/api-registry-ECOM-13562/.claude/skills/api-registry"
+      ],
+      "destination": "claude/skills/api-registry",
+      "files": {
+        "SKILL.md": "f5162170f4bc85b1e6df2a2ac46b0c5b9ad5ab4d30c9d21699942c13c1b0695d"
+      }
+    },
+    {
+      "name": "aws-auth",
+      "disposition": "imported",
+      "source": "~/.claude/skills/aws-auth",
+      "other_local_sources": [
+        "~/.claude-me/skills/aws-auth",
+        "~/.claude-byse/skills/aws-auth",
+        "~/siriusxm/x-quote/.claude/skills/aws-auth"
+      ],
+      "destination": "claude/skills/aws-auth",
+      "files": {
+        "SKILL.md": "9d9e7bbcec0e77da7bbd04298c43a317ebfecf1065e85459cf692dd1a34eea8d"
+      }
+    },
+    {
+      "name": "check-compatibility",
+      "disposition": "imported",
+      "source": "~/siriusxm/api-registry/.claude/skills/check-compatibility",
+      "other_local_sources": [
+        "~/siriusxm/api-registry-ECOM-13562/.claude/skills/check-compatibility"
+      ],
+      "destination": "claude/skills/check-compatibility",
+      "files": {
+        "SKILL.md": "7e32ded048bc7a6e7a04e8e7dcbfe557ed3e2771492c18b96dcd1e16ab77d505"
+      }
+    },
+    {
+      "name": "codebase-memory",
+      "disposition": "existing-preserved",
+      "source": "~/iswi/ai-dev/claude/skills/codebase-memory",
+      "other_local_sources": [
+        "~/.claude/skills/codebase-memory",
+        "~/.claude-me/skills/codebase-memory",
+        "~/.claude-byse/skills/codebase-memory"
+      ],
+      "destination": "claude/skills/codebase-memory",
+      "files": {
+        "SKILL.md": "2bf3d4870076d9d2782f45d2fcbfadb5e47e645263a4a6c5c3cc6bd33da9e431"
+      }
+    },
+    {
+      "name": "codebase-memory-setup",
+      "disposition": "existing-preserved",
+      "source": "~/iswi/ai-dev/claude/skills/codebase-memory-setup",
+      "other_local_sources": [
+        "~/.claude/skills/codebase-memory-setup",
+        "~/.claude-me/skills/codebase-memory-setup",
+        "~/.claude-byse/skills/codebase-memory-setup"
+      ],
+      "destination": "claude/skills/codebase-memory-setup",
+      "files": {
+        "SKILL.md": "e246341a472c3558ca88462511d962f740efcc121fccd8b348d723f5ceedcef8",
+        "assets/resolution-rules.md": "53a0cfa03a00af082081bbd3e2ac99d2ec4367edafee022a3500901a20ad7cbf"
+      }
+    },
+    {
+      "name": "fix-cdk-pr",
+      "disposition": "imported",
+      "source": "~/.claude/skills/fix-cdk-pr",
+      "other_local_sources": [
+        "~/.claude-me/skills/fix-cdk-pr",
+        "~/.claude-byse/skills/fix-cdk-pr"
+      ],
+      "destination": "claude/skills/fix-cdk-pr",
+      "files": {
+        "SKILL.md": "cb123d53b07923039734dbf45bd1013f2d5135ee8bd2f423ef8749c8fa8302da"
+      }
+    },
+    {
+      "name": "gsd-codebase-reindex",
+      "disposition": "existing-preserved",
+      "source": "~/iswi/ai-dev/claude/skills/gsd-codebase-reindex",
+      "other_local_sources": [
+        "~/.claude-byse/skills/gsd-codebase-reindex"
+      ],
+      "destination": "claude/skills/gsd-codebase-reindex",
+      "files": {
+        "SKILL.md": "e6d4f43ce3e2a0e36209566daad0a920a9838e14d70ac359ad7791b3de48a200",
+        "assets/capability/README.md": "b0561299f6f4049da789ace35acc1f69a9549c63dbd09c6c1cf26d393c344656",
+        "assets/capability/capability.json": "795b13d019a510058579204d5a9f6eb77e6d37d40dc7f2b75bd60e12c8de1aeb",
+        "assets/capability/codegraph-command.cjs": "5d78af009115d0dc99693af8f1ddc58bcd624f47c6758cab37ad6b3bfe8d40cd"
+      }
+    },
+    {
+      "name": "iswi-amend-history-with-diff",
+      "disposition": "imported",
+      "source": "~/.claude/skills/iswi-amend-history-with-diff",
+      "other_local_sources": [
+        "~/.claude-me/skills/iswi-amend-history-with-diff",
+        "~/.claude-byse/skills/iswi-amend-history-with-diff"
+      ],
+      "destination": "claude/skills/iswi-amend-history-with-diff",
+      "files": {
+        "SKILL.md": "049ee27bba4b78032040f24cd7ebb2f9103b0c73c8cd69825b9fa51e9fe3475b",
+        "scripts/map_hunks.py": "80537a3d3ab827af01e928f5cc4be50a7b7f9695b798ae3ff52b54889351b046",
+        "scripts/rewrite_history.py": "26158a8880d79576eddf1d13a19b9361c03fa851af30cc51343c541935b2daf6"
+      }
+    },
+    {
+      "name": "iswi-pickup-todo",
+      "disposition": "imported",
+      "source": "~/.claude/skills/iswi-pickup-todo",
+      "other_local_sources": [
+        "~/.claude-me/skills/iswi-pickup-todo",
+        "~/.claude-byse/skills/iswi-pickup-todo"
+      ],
+      "destination": "claude/skills/iswi-pickup-todo",
+      "files": {
+        "SKILL.md": "0babb350c50c34578b7590fbf63f9c3b181205afbfb4b9cd75e3c79b4a8bc182"
+      }
+    },
+    {
+      "name": "iswi-start-rancher-desktop",
+      "disposition": "imported",
+      "source": "~/.claude/skills/iswi-start-rancher-desktop",
+      "other_local_sources": [
+        "~/.claude-me/skills/iswi-start-rancher-desktop",
+        "~/.claude-byse/skills/iswi-start-rancher-desktop"
+      ],
+      "destination": "claude/skills/iswi-start-rancher-desktop",
+      "files": {
+        "SKILL.md": "56bbaafadee5ec6e6213b37aa2dba891f90e75b04a9fdd9971779f043deb3f86"
+      }
+    },
+    {
+      "name": "iswi-write-work-summary",
+      "disposition": "imported",
+      "source": "~/.claude/skills/iswi-write-work-summary",
+      "other_local_sources": [
+        "~/.claude-me/skills/iswi-write-work-summary",
+        "~/.claude-byse/skills/iswi-write-work-summary"
+      ],
+      "destination": "claude/skills/iswi-write-work-summary",
+      "files": {
+        "SKILL.md": "b114d1542b7ce29767796d2761480a1f552d4f53262d40df33ab3dd6e0c32763"
+      }
+    },
+    {
+      "name": "oncall-report",
+      "disposition": "imported",
+      "source": "~/.claude/plugins/marketplaces/sxm-commerce-plugins/plugins/oncall-report/skills/oncall-report",
+      "other_local_sources": [
+        "~/.claude/plugins/cache/sxm-commerce-plugins/oncall-report/40028643742f/skills/oncall-report"
+      ],
+      "destination": "claude/skills/oncall-report",
+      "files": {
+        "SKILL.md": "94fab3141751031cde74a380d33ba91c5f9dc18724f5d6104e14869b81763c2c",
+        "agents/openai.yaml": "e612889a2c7fddfd7f4de8bf01d92dc068b44e23e6d9698383c17a753c44e30b",
+        "references/response-format.md": "2c5c6fa1b894c359f35b9f68b71d5a93d30bc6d7f516d3bbf618faae9b75ed56"
+      }
+    },
+    {
+      "name": "pr-description",
+      "disposition": "imported",
+      "source": "~/.claude/skills/pr-description",
+      "other_local_sources": [
+        "~/.claude-me/skills/pr-description",
+        "~/.claude-byse/skills/pr-description"
+      ],
+      "destination": "claude/skills/pr-description",
+      "files": {
+        "SKILL.md": "3df75f03f160d4c67f569db5c7e241c845bbb33eee165de3d2c4356e46511648"
+      }
+    },
+    {
+      "name": "setup-x-workspace",
+      "disposition": "imported",
+      "source": "~/.claude/skills/setup-x-workspace",
+      "other_local_sources": [
+        "~/.codex/skills/setup-x-workspace"
+      ],
+      "destination": "claude/skills/setup-x-workspace",
+      "files": {
+        "SKILL.md": "6b7fcf0a0f0557786ad13df03a6987950e29d0ef96cc68922168564414a22956",
+        "agents/openai.yaml": "43913fb67fce2822d0de6e0674660ecad30083d4354547cb1ab15b62526b6462",
+        "assets/working-preferences.md": "ebcc12e0e6c144bdc604cc0a1da89c2ea8f8d88ed3c5474ffb7ddbccf1683bad",
+        "assets/workspace-rules.md": "fb82335ff94b34a06d6df7c31e77d137d2734b5215bb37dd2cf978a60e072c84",
+        "assets/x-quote-AGENTS.md": "18492df9626929bdb041c919f7bad09d6a200ab5f18f84d74ec5ee7f63f1cb06",
+        "assets/x-quote-CLAUDE.md": "18492df9626929bdb041c919f7bad09d6a200ab5f18f84d74ec5ee7f63f1cb06"
+      }
+    },
+    {
+      "name": "smithy-docs-navigator",
+      "disposition": "imported",
+      "source": "~/siriusxm/api-registry/.claude/skills/smithy-docs-navigator",
+      "other_local_sources": [
+        "~/siriusxm/api-registry-ECOM-13562/.claude/skills/smithy-docs-navigator"
+      ],
+      "destination": "claude/skills/smithy-docs-navigator",
+      "files": {
+        "SKILL.md": "f50caf17278a92cb6d1e5f1f2491bc92657e759d6990715048687474993d60b8"
+      }
+    },
+    {
+      "name": "smithy-selectors",
+      "disposition": "imported",
+      "source": "~/siriusxm/api-registry/.claude/skills/smithy-selectors",
+      "other_local_sources": [
+        "~/siriusxm/api-registry-ECOM-13562/.claude/skills/smithy-selectors"
+      ],
+      "destination": "claude/skills/smithy-selectors",
+      "files": {
+        "SKILL.md": "eb49252f453af486641bd878ab71f4641119f4a4c182b4427341f4e33753bd1a"
+      }
+    },
+    {
+      "name": "spike-findings-x-quote",
+      "disposition": "imported",
+      "source": "~/siriusxm/x-quote/.claude/skills/spike-findings-x-quote",
+      "other_local_sources": [],
+      "destination": "claude/skills/spike-findings-x-quote",
+      "files": {
+        "SKILL.md": "8199acb054294e2d1823464a28354487b0965b062fd4d2d15818a9d704684cb5",
+        "references/resolver-term-storage-shape.md": "0fad67bfab417c4aed1cb4f710d5c185c8f44e31478254aeabefe7e51af96dfd",
+        "sources/001-positional-array-roundtrip/PositionalArrayRoundtripSpikeSuite.scala": "50d84fae46ffc88cf7f14b05a940831847e1bfb862bf5f8f8e1ea560d0494b8c",
+        "sources/001-positional-array-roundtrip/README.md": "c6426d98da74dd2f2d88edb616d83111c46eb04d78493983f9db0190c0cf1de8",
+        "sources/001-positional-array-roundtrip/run-output.txt": "60a1d666e07050f07275a6e420aa910dbf4ed0444065a5caf99a90456cdafbc9",
+        "sources/002-reorder-silent-corruption/README.md": "c4e96a3087cc666b7d0402647fd7608e04dba0c818ff24f7c90aef54b6c66991",
+        "sources/002-reorder-silent-corruption/ReorderSilentCorruptionSpikeSuite.scala": "2a8e049d96ee1bcf960be6af7ca19eae994df6f8d59f600ea22ee7c6c91370f3",
+        "sources/002-reorder-silent-corruption/run-output.txt": "6ec7daeae24d8c1aca7d86e7b2a7ec4392355c1d3e28362232ffe70309896413"
+      }
+    },
+    {
+      "name": "sxm-add-lambda",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-add-lambda",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-add-lambda"
+      ],
+      "destination": "claude/skills/sxm-add-lambda",
+      "files": {
+        "SKILL.md": "036d39516fb6ddca4c2968842fae6ca7816cb99f1328044f9ca52b4c9ea45f69",
+        "agents/openai.yaml": "b6b31fa52cb87025ca0f3a0505a58cd54f3c51554a9f06c0e0cd07ac538d3d41",
+        "references/event-integration.md": "67113655486594d59d950437ca2a75bad70a0e6957addd0b1d6444aa56cf1c1e",
+        "references/function-wiring.md": "e5c98b8f7d896842b4e92e8866c7725ef2e4a37db614124a32cbe18f8034770d",
+        "references/sources.json": "d5634366bb826b1b3b8b068029666ba1132269d6b5bd3fea3a03c40757a6d8a8",
+        "references/sources.md": "34c52ce8df03b7f39c58563ac2c0c797e07a26695f6e069631458dc40c4b6d50"
+      }
+    },
+    {
+      "name": "sxm-api-contract-change",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-api-contract-change",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-api-contract-change"
+      ],
+      "destination": "claude/skills/sxm-api-contract-change",
+      "files": {
+        "SKILL.md": "a83423da2e0286c3a554cf25c1841c75cd642aec55d58118082c3d06966faaa9",
+        "agents/openai.yaml": "7abe961abcba92473b76efab4ef9cb842238f5517ebc3192b5811906cb29d88a",
+        "references/contract-procedure.md": "d1097bb0d7fc66dd1db48cb3a836e8a09ef8072aaa73032f2a5ad163bbe2bee9",
+        "references/sources.json": "4a8a64fff13b6e09b1e73ad5854a30a6fcd9b8de25caed15ca487be1fe23488a",
+        "references/sources.md": "4cdc336ac0fab47d181d102d5abdf883c76d6e0fa6faba1f089204c0f58a8df1"
+      }
+    },
+    {
+      "name": "sxm-config-replacement",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-config-replacement",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-config-replacement"
+      ],
+      "destination": "claude/skills/sxm-config-replacement",
+      "files": {
+        "SKILL.md": "61ca0cdc3db9891027ee830d1592cb16df53cc64efe74eef49c7fa3bbac3e581",
+        "agents/openai.yaml": "0f344d790318961a6cc734729df821b8ad1684d292195ef1022a49228a6021f6",
+        "references/replacement-procedure.md": "17cf6933870ce63419b3da4076b4dbd7d88a964d634c4434cb080d8509bfc7f9",
+        "references/sources.json": "aee2f162448f0183b903357a230bc76a3629e13c3e8e961ae424c2edd9b1590e",
+        "references/sources.md": "0bd6ec078349163b1ea04c67301f483ccefe153d9435b923f412a89853f26368"
+      }
+    },
+    {
+      "name": "sxm-ddb-global-table",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-ddb-global-table",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-ddb-global-table"
+      ],
+      "destination": "claude/skills/sxm-ddb-global-table",
+      "files": {
+        "SKILL.md": "3b4d0e8a5b02b71b68c4b814e37518e4df59e71054dd8490ab1ec842a94ea546",
+        "agents/openai.yaml": "90488616f01f4f1ba810e0cedd5a00c9f393206e6bf5df1579b0c7115649bfe6",
+        "references/migration.md": "a51e73402dc6a7b35f89d21dd39afe93a143af4848271937d36241a4da1112a1",
+        "references/provisioning.md": "f1729650cceb5dfaccce1e8b09e84b8f859b3d2a0cdf68e9400d3230ea63c83b",
+        "references/sources.json": "9b088db76195487abea1b028327e813e80d0278181e65c513a3c28bc1c312d0f",
+        "references/sources.md": "bad7e2263511b65670da87c0db7beaa09346ff461b900201f086ebbb02261e59"
+      }
+    },
+    {
+      "name": "sxm-dependency-pr-loop",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-dependency-pr-loop",
+      "other_local_sources": [
+        "~/.claude-me/skills/sxm-dependency-pr-loop",
+        "~/.codex/skills/sxm-dependency-pr-loop",
+        "~/siriusxm/ops/.claude/skills/sxm-dependency-pr-loop"
+      ],
+      "destination": "claude/skills/sxm-dependency-pr-loop",
+      "files": {
+        "SKILL.md": "74016d2bbc289e7d6d3e1d036b390540226134400c57b88b77800789eb2cf155"
+      }
+    },
+    {
+      "name": "sxm-event-consumer",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-event-consumer",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-event-consumer"
+      ],
+      "destination": "claude/skills/sxm-event-consumer",
+      "files": {
+        "SKILL.md": "7daac2d9d41a29222ab548c626b220456ee6cfa5236715ca91e396b1d4f04967",
+        "agents/openai.yaml": "73de83d9c9dd45a62e9029fb4c85f2713d2d82188feb8071aa9a381104eb1ba7",
+        "references/consumer-behavior.md": "cc358179e7f4976d9bfc8c1385efb9074f41139eedd04bac9bf21a188c6af07d",
+        "references/sources.json": "28700b7cdf8e78ad21260679d1063b0aa7a093626454f395d0ab74773987d6db",
+        "references/sources.md": "6b6185757d2826ec28644fdf961e74c8c045404a95acf2f35bd4dd41dbba77cb"
+      }
+    },
+    {
+      "name": "sxm-load-test",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-load-test",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-load-test"
+      ],
+      "destination": "claude/skills/sxm-load-test",
+      "files": {
+        "SKILL.md": "bbf9a0b22c3fca0f359d6b45b7f8edb13c269d6bfd0526087c9f8913eb2897c6",
+        "agents/openai.yaml": "35496c5e73dd711e7960b44bc8d48f68f43a0a63da8eacc6c9c85a1659d6f1db",
+        "references/simulation-setup.md": "3e451acd018c833db402b0486f2916f608c64c57320509b50c5ddee517678be4",
+        "references/sources.json": "886781f391f87752e7218231b47e093f2a9aebbfe370de900ed0e21d733b6cd8",
+        "references/sources.md": "18018968769ea195d6fe585e501576eb1d366db20120b0c42c22c995caf852af"
+      }
+    },
+    {
+      "name": "sxm-observability",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-observability",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-observability"
+      ],
+      "destination": "claude/skills/sxm-observability",
+      "files": {
+        "SKILL.md": "45d5feefcfe95b7760c73a27944d70c3bd829f95b4f5a4548939b3d6f2983639",
+        "agents/openai.yaml": "b63bb4bda847f21a4a3650356d1400188d408b5b75373f64fb812c8dcfd32a4a",
+        "references/monitor-wiring.md": "389430011db6259bc44bb139ad3abeb07161b26d2efc87bf2dc0ec88864a848b",
+        "references/sources.json": "3fd7ba07a9456a4820e9a792aec721f3c0eb40c9366247f0ada27905cabf19d1",
+        "references/sources.md": "706c4371b57dd284a8384e2cd82edbed815f6ccdf27ff652219afd7b380cd218"
+      }
+    },
+    {
+      "name": "sxm-release-and-deploy",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-release-and-deploy",
+      "other_local_sources": [
+        "~/.claude-me/skills/sxm-release-and-deploy",
+        "~/.codex/skills/sxm-release-and-deploy",
+        "~/siriusxm/ops/.claude/skills/sxm-release-and-deploy"
+      ],
+      "destination": "claude/skills/sxm-release-and-deploy",
+      "files": {
+        "SKILL.md": "ad77eefefc8b01abce3232c7aaed33330d84afa51ab5afd1b684f8d611912582"
+      }
+    },
+    {
+      "name": "sxm-s3-storage",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-s3-storage",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-s3-storage"
+      ],
+      "destination": "claude/skills/sxm-s3-storage",
+      "files": {
+        "SKILL.md": "cdc22c77bd13733149610de359e5efdefed3715eac31691c90c4de73c3778359",
+        "agents/openai.yaml": "9d9eedb0abffd98ad18677180fdea2853105c98c6c1c8c31fcc8de94cb8b7527",
+        "references/bucket-setup.md": "2b32b7ca7751d4d6f92c7bc039767cb54277d07a35396578c7325da98d7daaf7",
+        "references/replication.md": "9f07679818849f7478aa541e4309fd1dab92589e723ae2dcde25c68d85cd0078",
+        "references/sources.json": "7f0cc3567c628712e279d399c15b5fa09bf574115c7bc80f63d75f2e86b908fb",
+        "references/sources.md": "9bbd9fb25d99028a5f5d3a40ba1921536e5d15a7e0cc29e6961f71a23bfdbbb4"
+      }
+    },
+    {
+      "name": "sxm-secret-access",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-secret-access",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-secret-access"
+      ],
+      "destination": "claude/skills/sxm-secret-access",
+      "files": {
+        "SKILL.md": "0209e8864bb43d7738aec3153ba3903492565269e24a8b0aab1b3602713dbf31",
+        "agents/openai.yaml": "1cfef873333e68e11d278c4890aea2a58c724345204677739ffc75c54d79da44",
+        "references/access-wiring.md": "21df87de059e0dcb640942616ab35bad0b4082ada31186421082c9ec57de600b",
+        "references/sources.json": "cd28354e4722a1ac0e3e271bf7f7b9008d842a92ac427517aaf943298ebf2220",
+        "references/sources.md": "04200b686889ff4ad3ef5bc4cde842738633a730b54491b19c70f0be8417e9bc"
+      }
+    },
+    {
+      "name": "sxm-service-call",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-service-call",
+      "other_local_sources": [
+        "~/.claude-me/skills/sxm-service-call",
+        "~/.claude-byse/skills/sxm-service-call",
+        "~/siriusxm/x-quote/.claude/skills/sxm-service-call"
+      ],
+      "destination": "claude/skills/sxm-service-call",
+      "files": {
+        "SKILL.md": "47e47138a62ab61775be67fc1dedab51a0df24fe911866764d5edc70d9633f5f"
+      }
+    },
+    {
+      "name": "sxm-service-deployment",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-service-deployment",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-service-deployment"
+      ],
+      "destination": "claude/skills/sxm-service-deployment",
+      "files": {
+        "SKILL.md": "77500c0abcc37e6b2646f7d8a9e95f5f8c37152569c59d3172864524abe301ff",
+        "agents/openai.yaml": "6270dc8cd0749d9c597d16e700d83bcede4ba3a9240faaca91825389063bd245",
+        "references/release-handoff.md": "de2ca539b820debf1fd7636b7c5ecf69ca7204efdc569332768217ff7f1679ad",
+        "references/sources.json": "4508927baeb96fccc786053c1e30130677205910a94e81c86d8e3af56ed4c549",
+        "references/sources.md": "0abd08d30974f553fdb62e1d7f1225a29940764a9c2e600969de91dc62ce0919",
+        "references/stage-wiring.md": "4a05a5e466b2e60e39d78cc0e6305f61ccd94f4f4889b9d14c7e36cfee7e128e"
+      }
+    },
+    {
+      "name": "sxm-smoke-verification",
+      "disposition": "imported",
+      "source": "~/.claude/skills/sxm-smoke-verification",
+      "other_local_sources": [
+        "~/.codex/skills/sxm-smoke-verification"
+      ],
+      "destination": "claude/skills/sxm-smoke-verification",
+      "files": {
+        "SKILL.md": "b2da8ab38c58bf600b69abf7138aa3ab07f4d85a62bcd54626efbbfca6cac625",
+        "agents/openai.yaml": "4a9ca995409171f3556a4db071fa2caae03b9e89ac7e2a704921585dc86b0788",
+        "references/smoke-procedure.md": "694dbb457e0cc3c99ef4279e231b629e08236fb7815a9a2f2961b2a88943d49a",
+        "references/sources.json": "e0d86444284533a3dcb8a68b20463fd9d297a50a1f7f847293c5cabfc4efdfe2",
+        "references/sources.md": "1cf56fd1b514305f79f3f36e8735d883652f89efc410fb81bdda9ad516790734"
+      }
+    }
+  ],
+  "rules": [
+    {
+      "source": "~/.claude/CLAUDE.md",
+      "destination": "rules/claude/CLAUDE.md",
+      "sha256": "ff136390e0bc3c83ccb3e5ee6c733ab430f605f346a800b7b70daea97143e514"
+    },
+    {
+      "source": "~/.codex/AGENTS.md",
+      "destination": "rules/codex/AGENTS.md",
+      "sha256": "f29328796ab59294ef502e0b409f4826674ec320072d23cd7bc06143cdaaee49"
+    }
+  ]
+}

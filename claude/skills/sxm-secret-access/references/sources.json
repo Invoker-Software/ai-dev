@@ -1,0 +1,26 @@
+[
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/secrets-stack.ts",
+    "sha256": "6d1e39349f261d77007197be5c3895289e99ce327b6e883bfd411fd95909e789"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/service-stack.ts",
+    "sha256": "58996ce8414e29f87725a1aaf2a9decb405f1ce429eafae67a830a13feec5bde"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/secrets.ts",
+    "sha256": "8ef4ed802f99429d3338295077bdc1ac77e80bc7aa077ed6f0eeefde14f23738"
+  },
+  {
+    "repository": "commerce-e2e",
+    "ref": "98522643abdd91effa889ae50f6eda3dfd50d382",
+    "path": "infrastructure/lib/GithubRunSupportStack.ts",
+    "sha256": "dca54e0d37d8d444b5fa7a0393dbf0ab3fe28b97891586159c9caca78ae17604"
+  }
+]

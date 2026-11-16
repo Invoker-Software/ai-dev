@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM Lambda setup"
+  short_description: "Wire container Lambdas into platform infrastructure"

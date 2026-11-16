@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM S3 storage"
+  short_description: "Configure buckets, notifications, and regional replication"

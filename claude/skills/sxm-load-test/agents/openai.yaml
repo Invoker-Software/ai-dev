@@ -1,0 +1,3 @@
+interface:
+  display_name: "SXM load tests"
+  short_description: "Add Gatling simulations using the commerce scenario DSL"

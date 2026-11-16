@@ -1,0 +1,13 @@
+interface:
+  display_name: "On-Call Report"
+  short_description: "Build Datadog on-call reports"
+  default_prompt: "Use $oncall-report to create a Datadog on-call report for my team."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "datadog"
+      description: "Datadog MCP tools for monitor and log checks"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,62 @@
+[
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/bin/app.ts",
+    "sha256": "947edc797f0e72689b6cc41dc5e45f783c8ee958d9ccc4119687589305002b7f"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/setup-env-stage.ts",
+    "sha256": "98bf42b7311ffd64721fad56a01c802c505c96317b1a5ab7898d9e2d6850a31a"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stages/prereqs-stage.ts",
+    "sha256": "3843827cfe0c4fc29647b440b0f4ae17b2946cecb40599d9f2b6f7f7dace51af"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stages/deployment-stage.ts",
+    "sha256": "13aa13153306e58141d2207cd81d817f481fc09c39663da4044978e7ac4d18ad"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/lib/stacks/service-stack.ts",
+    "sha256": "58996ce8414e29f87725a1aaf2a9decb405f1ce429eafae67a830a13feec5bde"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/config/code-deploy-config.ts",
+    "sha256": "e0371d4459243b080cd27f5b5378696b7c9c48711c458fa1c84a98188db50eec"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": ".github/workflows/main.yml",
+    "sha256": "6a519d5e77c4282b555897371e20c2d6e43777aa30886a281e1f1e8eb75d52b4"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": ".github/workflows/deploy-prereqs.yml",
+    "sha256": "711399fd1209d5b1b1178478c5442adcbdcf65a6a44c39c911683e5e8e8faef3"
+  },
+  {
+    "repository": "quote-service",
+    "ref": "ebe8515f6121ee18ac09de1966b68c10d6d96342",
+    "path": "infrastructure/package.json",
+    "sha256": "438f20d78c8f14b2f27d2b3fa96b90652b106016f03d2b4e2c721bb969ab057c"
+  },
+  {
+    "repository": "gapa-service",
+    "ref": "4e658c892f0e11de74ea9187be5b1f8240378565",
+    "path": "infrastructure/lib/stages/deployment-stage.ts",
+    "sha256": "e8ed996d540e3f4ec5504d45fb144491d0493799e2e16f7393a68caa71535588"
+  }
+]
