@@ -27,6 +27,8 @@ dependencies or authorize its commands. Global rules and current user
 instructions take precedence over skill instructions, including older skill
 instructions about publishing or Docker tests.
 
-Global preference files are stored under `rules/`; see `rules/README.md` for
-their merge instructions. The installer continues to deploy skills and
-agents only. No active global configuration was changed by this import.
+Global preference snapshots are stored under `rules/`; see `rules/README.md`
+for their relationship to canonical project rules. `ai-dev init` now selects
+general or SiriusXM skills and merges project preferences; the legacy global
+installer still deploys every source skill and agent. No active global
+configuration was changed by the import.

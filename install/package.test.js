@@ -23,8 +23,8 @@ test('dependencies is an empty object', () => {
   assert.deepStrictEqual(pkg.dependencies, {});
 });
 
-test('files is the two-entry allowlist', () => {
-  assert.deepStrictEqual(pkg.files, ['claude/', 'install/']);
+test('files includes installer sources, skills, and rule sources', () => {
+  assert.deepStrictEqual(pkg.files, ['claude/', 'install/', 'rules/']);
 });
 
 test('bin maps the package name to the CLI path', () => {

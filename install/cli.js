@@ -953,6 +953,14 @@ function printStalenessLine(pkgName, sha, staleness, repoSlug) {
  * @returns {Promise<void>}
  */
 async function main() {
+  if (process.argv[2] === 'init') {
+    require('./project.js').runInit(process.argv.slice(3));
+    return;
+  }
+  if (process.argv[2] === '--help' || process.argv[2] === '-h') {
+    console.log(require('./project.js').initHelp());
+    return;
+  }
   const { values, positionals } = parseCliArgs(process.argv.slice(2));
   const dryRun = values['dry-run'];
 

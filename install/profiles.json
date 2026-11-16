@@ -1,0 +1,53 @@
+{
+  "general": [
+    "adhoc-platform-task",
+    "codebase-memory",
+    "codebase-memory-setup",
+    "iswi-amend-history-with-diff",
+    "iswi-write-work-summary",
+    "pr-description"
+  ],
+  "siriusxm": [
+    "api-registry",
+    "aws-auth",
+    "check-compatibility",
+    "fix-cdk-pr",
+    "iswi-pickup-todo",
+    "oncall-report",
+    "setup-x-workspace",
+    "smithy-docs-navigator",
+    "smithy-selectors",
+    "sxm-add-lambda",
+    "sxm-api-contract-change",
+    "sxm-config-replacement",
+    "sxm-ddb-global-table",
+    "sxm-dependency-pr-loop",
+    "sxm-event-consumer",
+    "sxm-load-test",
+    "sxm-observability",
+    "sxm-release-and-deploy",
+    "sxm-s3-storage",
+    "sxm-secret-access",
+    "sxm-service-call",
+    "sxm-service-deployment",
+    "sxm-smoke-verification"
+  ],
+  "claudeOnly": ["adhoc-platform-task"],
+  "optional": {
+    "gsd-codebase-reindex": {
+      "profile": "general",
+      "runtimes": ["claude"],
+      "reason": "Requires an existing global Claude GSD installation; the skill can change global GSD configuration when invoked."
+    },
+    "iswi-start-rancher-desktop": {
+      "profile": "siriusxm",
+      "runtimes": ["claude", "codex"],
+      "reason": "Specific to the original macOS ARM machine and Rancher Desktop configuration."
+    },
+    "spike-findings-x-quote": {
+      "profile": "siriusxm",
+      "runtimes": ["claude", "codex"],
+      "reason": "Quote-service project-specific experiments and implementation references."
+    }
+  }
+}

@@ -1,5 +1,12 @@
 # install/ — write contract
 
+For project-local setup with `general` and `siriusxm` profiles, use
+`node install/cli.js init <project> --profile general --runtime claude`.
+See the root README for runtime layouts, managed preferences, updates, and
+optional skills. The `init` path invokes no external commands and makes no
+home-level writes. The contract below describes the legacy global Claude
+config-directory command, which installs all skills without filtering.
+
 What `install/cli.js` writes, and where, when run as:
 
 ```
